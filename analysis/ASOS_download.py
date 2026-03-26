@@ -7,10 +7,10 @@ Download and process ASOS station data for WRF wind comparison.
 This script:
 1. Downloads ASOS 5 minute data for specified time period
 2. Computes peak wind gusts and sustained winds
-3. Saves processed data for ML analysis
+3. Saves processed data
 
 Example use:
-    python download_asos_data.py --event houston --start "2024-05-16 06:00" --end "2024-05-17 06:00"
+    python ASOS_download.py --event houston --start "2024-05-16 06:00" --end "2024-05-17 06:00"
 """
 
 import argparse
@@ -30,7 +30,7 @@ class ASOSDownloader:
     STATION_LISTS = {
         'houston': [
             'KHOU', 'KIAH', 'KGLS', 'KDWH', 'KSGR', 'KTME',  # Houston area
-            'KCLL', 'KBPT', 'KLCH', 'KLFT', 'KMSY', 'KNEW', 'KBTR'  # Surrounding
+            'KCLL', 'KBPT', 'KLCH', 'KLFT', 'KMSY', 'KNEW', 'KBTR' 
         ],
         'iowa': [
             'KDSM', 'KCID', 'KDVN', 'KMCW', 'KOTM',  # Iowa
@@ -104,8 +104,6 @@ class ASOSDownloader:
             raise ValueError(f"Event '{event}' not recognized. Choose from: {list(self.STATION_LISTS.keys())}")
         
         self.stations = self.STATION_LISTS[event]
-        print("Initialized ASOS downloader for", event)
-        print("Time period:", self.start_time, "to", self.end_time, "UTC")
     
     def download_station_data(self, station):
         """
@@ -113,8 +111,6 @@ class ASOSDownloader:
         
         Uses IEM ASOS download service: https://mesonet.agron.iastate.edu/request/download.phtml
         """
-        start_str = self.start_time.strftime('%Y-%m-%d %H:%M')
-        end_str = self.end_time.strftime('%Y-%m-%d %H:%M')
         
         # IEM ASOS API endpoint
         url = 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py'
@@ -140,14 +136,13 @@ class ASOSDownloader:
         }
         
         try:
-            print(f"  Downloading {station}...", end=' ')
             response = requests.get(url, params=params, timeout=30)
             response.raise_for_status()
             
             df = pd.read_csv(StringIO(response.text), na_values=['M', '', 'T'])
             
             if df.empty:
-                print(f"No data returned")
+                print("No data returned")
                 return None
             
             df['valid'] = pd.to_datetime(df['valid'])
@@ -211,19 +206,15 @@ class ASOSDownloader:
             'elevation': elev,
             'n_obs': len(df),
             
-            # Peak values
             'peak_sustained_wind': winds.max() if len(winds) > 0 else np.nan,
             'peak_gust': gusts.max() if len(gusts) > 0 else np.nan,
             
-            # Timing of peaks
             'time_peak_sustained': df.loc[winds.idxmax(), 'valid'] if len(winds) > 0 else pd.NaT,
             'time_peak_gust': df.loc[gusts.idxmax(), 'valid'] if len(gusts) > 0 else pd.NaT,
             
-            # Statistics during event
             'mean_wind': winds.mean() if len(winds) > 0 else np.nan,
             'max_1hr_mean_wind': winds.rolling(12, min_periods=6).mean().max() if len(winds) > 0 else np.nan,  # 12 obs = 1 hr at 5-min
             
-            # Data quality
             'pct_missing_wind': (df['sknt'].isna().sum() / len(df)) * 100,
             'pct_missing_gust': (df['gust'].isna().sum() / len(df)) * 100,
         }
@@ -249,7 +240,6 @@ class ASOSDownloader:
         df.to_csv(output_file, index=False)
         print("Saved:", output_file)
         
-        # Save metadata JSON
         meta_file = self.output_dir / f'{self.event}_metadata.json'
         metadata = {
             'event': self.event,
@@ -272,11 +262,6 @@ class ASOSDownloader:
         mean = df['peak_gust'].mean()
         median = df['peak_gust'].median()
 
-        print("\nPeak wind gusts:")
-        print("  Maximum: " + str(round(peak, 1)) + " m/s (" + str(round(peak * 2.23694, 1)) + " mph)")
-        print("  Mean:    " + str(round(mean, 1)) + " m/s (" + str(round(mean * 2.23694, 1)) + " mph)")
-        print("  Median:  " + str(round(median, 1)) + " m/s (" + str(round(median * 2.23694, 1)) + " mph)")
-
 def main():
     parser = argparse.ArgumentParser(description='Download and process ASOS data for WRF comparison')
     parser.add_argument('--event', required=True, 
@@ -291,7 +276,6 @@ def main():
     
     args = parser.parse_args()
     
-    # Create downloader
     downloader = ASOSDownloader(
         event=args.event,
         start_time=args.start,
@@ -299,17 +283,13 @@ def main():
         output_dir=args.output_dir
     )
     
-    # Download data
     df = downloader.download_all_stations()
     
     if df.empty:
-        print("ERROR: No data downloaded successfully!")
+        print("ERROR: No data downloaded successfully")
         return 1
     
-    # Save data
     downloader.save_data(df)
-    
-    # Print summary
     downloader.generate_summary_stats(df)
     
     return 0
