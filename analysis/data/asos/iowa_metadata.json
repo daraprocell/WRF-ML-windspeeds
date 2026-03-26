@@ -1,0 +1,19 @@
+{
+  "event": "iowa",
+  "start_time": "2020-08-10T06:00:00",
+  "end_time": "2020-08-11T06:00:00",
+  "n_stations": 10,
+  "stations": [
+    "KDSM",
+    "KCID",
+    "KDVN",
+    "KMCW",
+    "KOTM",
+    "KORD",
+    "KMDW",
+    "KMLI",
+    "KIND",
+    "KCVG"
+  ],
+  "downloaded": "2026-03-26T10:35:28.224154"
+}

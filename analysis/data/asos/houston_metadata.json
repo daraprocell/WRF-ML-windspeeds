@@ -1,0 +1,22 @@
+{
+  "event": "houston",
+  "start_time": "2024-05-16T06:00:00",
+  "end_time": "2024-05-17T06:00:00",
+  "n_stations": 13,
+  "stations": [
+    "KHOU",
+    "KIAH",
+    "KGLS",
+    "KDWH",
+    "KSGR",
+    "KTME",
+    "KCLL",
+    "KBPT",
+    "KLCH",
+    "KLFT",
+    "KMSY",
+    "KNEW",
+    "KBTR"
+  ],
+  "downloaded": "2026-03-26T10:35:02.296177"
+}
