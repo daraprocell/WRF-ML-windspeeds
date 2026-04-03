@@ -58,7 +58,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 class WRFWindExtractor:
     """Extract WRF 10m winds at ASOS station locations."""
     
-    def __init__(self, wrfout_files, radius_km=15):
+    def __init__(self, wrfout_files, radius_km=5):
         """
         Initialize WRF wind extraction fucntion.
         
@@ -455,8 +455,8 @@ def main():
                        help='WRF output files (wrfout_d02_*)')
     parser.add_argument('--asos', required=True, 
                        help='ASOS summary CSV file')
-    parser.add_argument('--radius', type=float, default=15,
-                       help='Weighted averaging radius in km (default: 15)')
+    parser.add_argument('--radius', type=float, default=5,
+                       help='Weighted averaging radius in km (default: 5)')
     parser.add_argument('--output-dir', default='output',
                        help='Output directory')
     
