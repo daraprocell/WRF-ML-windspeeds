@@ -1,6 +1,6 @@
 {
   "event": "houston",
-  "start_time": "2024-05-16T06:00:00",
+  "start_time": "2024-05-16T00:00:00",
   "end_time": "2024-05-17T06:00:00",
   "n_stations": 13,
   "stations": [
@@ -18,5 +18,5 @@
     "KNEW",
     "KBTR"
   ],
-  "downloaded": "2026-03-26T10:35:02.296177"
+  "downloaded": "2026-04-11T15:00:05.536336"
 }

@@ -131,8 +131,6 @@ class ASOSDownloader:
             'missing': 'M',
             'trace': 'T',
             'direct': 'no',
-            'report_type': '1',  
-            'report_type': '2',  
         }
         
         try:
