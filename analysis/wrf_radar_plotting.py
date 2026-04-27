@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-wrf_radar_comparison.py
+wrf_radar_plotting.py
 -----------------------
 Compare WRF simulated reflectivity (REFL_10CM) against IEM NEXRAD composite
 reflectivity for the Houston derecho event.
@@ -12,7 +12,7 @@ Produces:
   4. refl_comparison.gif         — side-by-side WRF vs obs animated GIF
 
 Example use:
-    python wrf_radar_comparison.py \
+    python wrf_radar_plotting.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
         --output-dir figures/radar \
         --event-window-start "2024-05-16 18:00" \
@@ -37,9 +37,8 @@ from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
-# ---------------------------------------------------------------------------
+
 # Radar colormap — matches NWS standard reflectivity colors
-# ---------------------------------------------------------------------------
 
 def make_nws_refl_cmap():
     """
@@ -83,9 +82,7 @@ HOUSTON_STATIONS = {
     'KBPT':  (30.0686, -94.0207),
 }
 
-# ---------------------------------------------------------------------------
 # WRF loading
-# ---------------------------------------------------------------------------
 
 def load_wrf_times(wrfout_files):
     """Return list of (filepath, time_index, datetime) tuples."""
@@ -110,7 +107,7 @@ def extract_wrf_refl(fpath, tidx):
         wrf_lat = nc.variables['XLAT'][0, :, :]
         wrf_lon = nc.variables['XLONG'][0, :, :]
 
-    # Column maximum = composite reflectivity
+    # Column max = composite reflectivity
     refl_comp = np.max(refl_3d, axis=0)
 
     # Mask negative values (clear air)
@@ -119,19 +116,17 @@ def extract_wrf_refl(fpath, tidx):
     return refl_comp, wrf_lat, wrf_lon
 
 
-# ---------------------------------------------------------------------------
 # IEM observed radar download
-# ---------------------------------------------------------------------------
 
 def download_iem_radar(dt):
     """
     Download IEM NEXRAD composite reflectivity PNG for a given UTC datetime.
     Returns PIL Image or None if unavailable.
 
-    IEM files are named n0q_YYYYMMDDHHММ.png at 5-minute intervals.
-    We find the nearest 5-minute timestamp.
+    IEM files are named n0q_YYYYMMDDHHММ.png at 5 minute intervals.
+    We find the nearest 5 minute timestamp.
     """
-    # Round to nearest 5 minutes
+    # Round to nearest 5 min
     minute = (dt.minute // 5) * 5
     dt_rounded = dt.replace(minute=minute, second=0, microsecond=0)
 
@@ -145,7 +140,7 @@ def download_iem_radar(dt):
         img = Image.open(BytesIO(resp.content))
         return img, url
     except Exception as e:
-        print(f"  Could not download radar for {dt_rounded}: {e}")
+        print(f"Could not download radar for {dt_rounded}: {e}")
         return None, url
 
 
@@ -162,19 +157,18 @@ def iem_image_to_refl(img, wrf_lat, wrf_lon):
     if img is None:
         return None
 
-    # IEM domain bounds (EPSG:4326)
+    # IEM domain bounds 
     IEM_LON_MIN, IEM_LON_MAX = -126.0, -66.0
     IEM_LAT_MIN, IEM_LAT_MAX =   23.0,  50.0
 
     arr = np.array(img.convert('P'))
     img_h, img_w = arr.shape
 
-    # Build pixel value -> dBZ lookup table
+    # Build pixel value 
     dbz_lookup = np.full(256, np.nan)
     for pv in range(1, 256):
         dbz_lookup[pv] = (pv * 0.5) - 32.5
 
-    # Apply lookup
     dbz = dbz_lookup[arr]
 
     # Mask below 0 dBZ (noise / clear air)
@@ -189,10 +183,7 @@ def iem_image_to_refl(img, wrf_lat, wrf_lon):
 
     return dbz[py, px]
 
-
-# ---------------------------------------------------------------------------
 # Plotting helpers
-# ---------------------------------------------------------------------------
 
 def add_state_borders(ax, lons, lats):
     """Add simple state border approximations using cartopy if available."""
@@ -212,8 +203,8 @@ def add_state_borders(ax, lons, lats):
 def plot_refl_panel(ax, refl, lat, lon, title, stations=None,
                     cp_arrivals=None, vmin=0, vmax=75):
     """
-    Plot a single reflectivity panel using pcolormesh for consistent,
-    non-cartoonish appearance across WRF and observed panels.
+    Plot a single reflectivity panel using pcolormesh for consistent
+    appearance across WRF and observed panels.
     """
     refl_masked = np.where(np.isnan(refl) | (refl < 0), np.nan, refl)
 
@@ -244,14 +235,12 @@ def plot_refl_panel(ax, refl, lat, lon, title, stations=None,
     return cf
 
 
-# ---------------------------------------------------------------------------
-# Figure 1: Side-by-side at peak time
-# ---------------------------------------------------------------------------
+# Figure 1: Side by side at peak time
 
 def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
                          peak_dt, output_path):
     """
-    Side-by-side WRF simulated vs observed reflectivity at peak event time.
+    Side by side WRF simulated vs observed reflectivity at peak event time.
     """
     fig, axes = plt.subplots(1, 2, figsize=(18, 8),
                              subplot_kw=dict())
@@ -275,7 +264,6 @@ def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
         axes[1].set_title(f'NEXRAD Observed\n{peak_dt.strftime("%Y-%m-%d %H:%MZ")}',
                           fontsize=11, fontweight='bold')
 
-    # Shared colorbar
     plt.colorbar(cf1, ax=axes, label='Composite Reflectivity (dBZ)',
                  orientation='horizontal', pad=0.05, shrink=0.6)
 
@@ -288,9 +276,7 @@ def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
     print(f"Saved: {output_path}")
 
 
-# ---------------------------------------------------------------------------
-# Figure 2: Animated GIFs
-# ---------------------------------------------------------------------------
+# Figure 2: GIFs
 
 def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
                   wrf_lat=None, wrf_lon=None, obs_frames=None):
@@ -366,11 +352,6 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
         frames_data.append(frame)
         plt.close()
 
-        if (idx + 1) % 5 == 0:
-            print(f"  Rendered {idx+1}/{n_frames} frames...")
-
-    # Write GIF
-    print(f"Writing GIF ({n_frames} frames)...")
     pil_frames = [Image.fromarray(f) for f in frames_data]
     pil_frames[0].save(
         output_path,
@@ -381,10 +362,6 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
     )
     print(f"Saved: {output_path}")
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
