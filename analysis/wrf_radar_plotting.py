@@ -150,23 +150,37 @@ def download_iem_radar(dt):
 
 
 def iem_image_to_refl(img, wrf_lat, wrf_lon):
+    """
+    Convert IEM n0q PNG composite to dBZ values on the WRF grid.
+
+    IEM n0q encoding: dBZ = (pixel_value * 0.5) - 32.5
+    pixel_value = 0 → no echo (NaN)
+    pixel_value = 1-255 → -32.0 to 95.0 dBZ in 0.5 dBZ steps
+
+    Returns dBZ array interpolated to WRF lat/lon grid.
+    """
     if img is None:
         return None
+
+    # IEM domain bounds (EPSG:4326)
+    IEM_LON_MIN, IEM_LON_MAX = -126.0, -66.0
+    IEM_LAT_MIN, IEM_LAT_MAX =   23.0,  50.0
 
     arr = np.array(img.convert('P'))
     img_h, img_w = arr.shape
 
-    # Correct n0q encoding: dBZ = (pixel_value * 0.5) - 32.5
+    # Build pixel value -> dBZ lookup table
     dbz_lookup = np.full(256, np.nan)
     for pv in range(1, 256):
         dbz_lookup[pv] = (pv * 0.5) - 32.5
+
+    # Apply lookup
     dbz = dbz_lookup[arr]
+
+    # Mask below 0 dBZ (noise / clear air)
     dbz = np.where(dbz < 0, np.nan, dbz)
 
-    # IEM domain bounds
-    IEM_LON_MIN, IEM_LON_MAX = -126.0, -66.0
-    IEM_LAT_MIN, IEM_LAT_MAX =   23.0,  50.0
-
+    # Map WRF grid points to IEM pixel coordinates
     lon_frac = (wrf_lon - IEM_LON_MIN) / (IEM_LON_MAX - IEM_LON_MIN)
     lat_frac = 1.0 - (wrf_lat - IEM_LAT_MIN) / (IEM_LAT_MAX - IEM_LAT_MIN)
 
@@ -197,11 +211,16 @@ def add_state_borders(ax, lons, lats):
 
 def plot_refl_panel(ax, refl, lat, lon, title, stations=None,
                     cp_arrivals=None, vmin=0, vmax=75):
-    """Plot a single reflectivity panel."""
-    cf = ax.contourf(lon, lat, refl,
-                     levels=np.arange(5, 80, 5),
-                     cmap=NWS_CMAP, norm=REFL_NORM,
-                     extend='max')
+    """
+    Plot a single reflectivity panel using pcolormesh for consistent,
+    non-cartoonish appearance across WRF and observed panels.
+    """
+    refl_masked = np.where(np.isnan(refl) | (refl < 0), np.nan, refl)
+
+    cf = ax.pcolormesh(lon, lat, refl_masked,
+                       cmap=NWS_CMAP,
+                       norm=REFL_NORM,
+                       shading='auto')
 
     ax.set_xlim(lon.min(), lon.max())
     ax.set_ylim(lat.min(), lat.max())
@@ -302,10 +321,10 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
             axes = [axes]
 
         # WRF panel
-        cf = axes[0].contourf(wrf_lon, wrf_lat,
-                              np.where(np.isnan(wrf_refl), 0, wrf_refl),
-                              levels=np.arange(5, 80, 5),
-                              cmap=NWS_CMAP, norm=REFL_NORM, extend='max')
+        refl_masked = np.where(np.isnan(wrf_refl), np.nan, wrf_refl)
+        cf = axes[0].pcolormesh(wrf_lon, wrf_lat, refl_masked,
+                                cmap=NWS_CMAP, norm=REFL_NORM,
+                                shading='auto')
         axes[0].set_xlim(wrf_lon.min(), wrf_lon.max())
         axes[0].set_ylim(wrf_lat.min(), wrf_lat.max())
         axes[0].set_title(f'WRF Simulated Reflectivity\n{dt.strftime("%Y-%m-%d %H:%MZ")}',
@@ -325,10 +344,10 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
         if mode == 'comparison' and obs_frames is not None:
             obs = obs_frames[idx] if idx < len(obs_frames) else None
             if obs is not None:
-                axes[1].contourf(wrf_lon, wrf_lat,
-                                 np.where(np.isnan(obs), 0, obs),
-                                 levels=np.arange(5, 80, 5),
-                                 cmap=NWS_CMAP, norm=REFL_NORM, extend='max')
+                obs_masked = np.where(np.isnan(obs), np.nan, obs)
+                axes[1].pcolormesh(wrf_lon, wrf_lat, obs_masked,
+                                   cmap=NWS_CMAP, norm=REFL_NORM,
+                                   shading='auto')
                 axes[1].set_xlim(wrf_lon.min(), wrf_lon.max())
                 axes[1].set_ylim(wrf_lat.min(), wrf_lat.max())
             else:
