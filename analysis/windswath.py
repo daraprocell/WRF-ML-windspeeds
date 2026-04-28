@@ -407,3 +407,9 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+    ### TO Do
+
+    # 1. Make star of WRF maximum SMALLER so we can see the dark purple color on the map.
+    # 2. adjust the formatting so nothing is getting coeveredup.

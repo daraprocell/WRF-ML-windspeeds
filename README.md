@@ -165,14 +165,6 @@ python WRF_ASOS_analysis.py --multi-event --events houston iowa colorado
   - Cumulus scheme: *[fill in]*
 - **HPC:** UIUC Keeling cluster
 
-### Known Biases (Houston GFS Run)
-
-- Domain-mean wind speed bias: approximately −23 mph (systematic underprediction)
-- Storm track displacement: ~3° northward
-- Timing lag: 4–6 hours relative to observations
-- Motivated transition to HRRR forcing for improved initial conditions
-
----
 
 ## Requirements
 
@@ -188,6 +180,8 @@ cartopy
 wrf-python
 requests
 Pillow
+Plotly
+kaleido
 ```
 
 Install dependencies:
