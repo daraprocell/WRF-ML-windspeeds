@@ -22,7 +22,7 @@ Example use:
     python wrf_crosssection.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
         --peak-time "2024-05-16 23:00" \
-        --cross-lon -96.9 \
+        --cross-lon -95.4 \
         --baseline-end "2024-05-16 12:00" \
         --output figures/coldpool/coldpool_crosssection_fixed.png
 """
@@ -310,8 +310,8 @@ def main():
                         help='WRF output files')
     parser.add_argument('--peak-time', required=True,
                         help='UTC peak time: "YYYY-MM-DD HH:MM"')
-    parser.add_argument('--cross-lon', type=float, default=-96.9,
-                        help='Longitude for N-S cross section (default: -96.9)')
+    parser.add_argument('--cross-lon', type=float, default=-95.4,
+                        help='Longitude for N-S cross section (default: -95.4)')
     parser.add_argument('--baseline-end', default='2024-05-16 12:00',
                         help='End time for pre-storm baseline (default: 2024-05-16 12:00)')
     parser.add_argument('--output', default='figures/coldpool/CP_crosssection.png')
