@@ -115,7 +115,8 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     """
 
     # ---- Colormap and normalization ----------------------------------------
-    vmin, vmax = 0, 30
+    THRESH = 12.0   # only show winds above this threshold
+    vmin, vmax = THRESH, 30
     cmap = plt.cm.YlOrRd
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
@@ -132,8 +133,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         print("  Cartopy not available — plotting without map features")
 
     # ---- WRF wind swath background -----------------------------------------
-    # Only show convective-strength winds (>=12 m/s) to remove background noise
-    swath_masked = np.where(max_wspd >= 12, max_wspd, np.nan)
+    swath_masked = np.where(max_wspd >= THRESH, max_wspd, np.nan)
 
     if use_cartopy:
         pm = ax.pcolormesh(wrf_lon, wrf_lat, swath_masked,
@@ -144,39 +144,6 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         pm = ax.pcolormesh(wrf_lon, wrf_lat, swath_masked,
                            cmap=cmap, norm=norm,
                            shading='auto', alpha=0.88, zorder=2)
-
-    # ---- Timing contour lines (simplified to 2 zones) ----------------------
-    # Pre-midnight (18-00Z) = blue outline
-    # Post-midnight (00-02Z) = green outline
-    # Just show where WRF peaked in each window for significant winds
-    timing_zones = [
-        (18, 24, '#1565C0', '18-00Z (pre-midnight)'),  # blue
-        (0,   2, '#2E7D32', '00-02Z (post-midnight)'),  # green
-    ]
-
-    for t_start, t_end, color, label in timing_zones:
-        if t_start < t_end:
-            mask = (
-                (time_of_max >= t_start) &
-                (time_of_max <  t_end)   &
-                (max_wspd >= 15)
-            ).astype(float)
-        else:
-            mask = (
-                ((time_of_max >= t_start) | (time_of_max < t_end)) &
-                (max_wspd >= 15)
-            ).astype(float)
-
-        if mask.sum() > 50:
-            if use_cartopy:
-                ax.contour(wrf_lon, wrf_lat, mask,
-                           levels=[0.5], colors=[color],
-                           linewidths=2.0, alpha=0.8, zorder=4,
-                           transform=ccrs.PlateCarree())
-            else:
-                ax.contour(wrf_lon, wrf_lat, mask,
-                           levels=[0.5], colors=[color],
-                           linewidths=2.0, alpha=0.8, zorder=4)
 
     # ---- Add coastline and state borders -----------------------------------
     if use_cartopy:
@@ -199,8 +166,23 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     )
     asos_df = asos_df[in_domain].copy()
 
-    transform_kw = {'transform': ccrs.PlateCarree(), 'zorder': 8} if use_cartopy else {'zorder': 8}
-    annotate_kw  = {'xycoords': ccrs.PlateCarree()._as_mpl_transform(ax)} if use_cartopy else {}
+    # Manual label offsets (pixels) per station to avoid overlap
+    # Format: 'STATION': (x_offset, y_offset)
+    label_offsets = {
+        'KHOU': (-65, -30),
+        'KIAH': ( 10,  10),
+        'KDWH': ( 10,  10),
+        'KSGR': (-65, -30),
+        'KTME': (-75,  10),
+        'KCLL': (-65,  10),
+        'KGLS': (  8, -30),
+        'KBPT': (  8,  10),
+        'KLCH': (  8,  10),
+        'KLFT': (  8, -30),
+        'KMSY': (-65, -30),
+        'KNEW': (  8,  10),
+        'KBTR': (  8,  10),
+    }
 
     for idx, row in asos_df.iterrows():
         slat, slon = row['lat'], row['lon']
@@ -211,22 +193,24 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
 
         obs_gust  = row['peak_gust']
         station   = row['station']
-        dot_color = cmap(norm(obs_gust)) if not np.isnan(obs_gust) else 'gray'
+        dot_color = cmap(norm(min(max(obs_gust, vmin), vmax))) \
+                    if not np.isnan(obs_gust) else 'gray'
 
         ax.scatter(slon, slat, c=[dot_color], s=220, zorder=8,
                    edgecolors='black', linewidths=2.0, marker='o',
                    **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
 
-        label_text = (
-            f"{station}\n"
-            f"Obs: {obs_gust:.1f} m/s\n"
-            f"WRF: {wrf_at_station:.1f} m/s"
-        )
+        # Compact single-line label
+        label_text = f"{station}: {obs_gust:.0f}/{wrf_at_station:.0f} m/s"
+        xoff, yoff = label_offsets.get(station, (8, 6))
+
         ax.annotate(label_text, xy=(slon, slat),
-                    xytext=(8, 6), textcoords='offset points',
+                    xytext=(xoff, yoff), textcoords='offset points',
                     fontsize=7.5, fontweight='bold', zorder=9,
-                    bbox=dict(boxstyle='round,pad=0.3', fc='white',
-                              ec='gray', alpha=0.85, lw=0.8),
+                    bbox=dict(boxstyle='round,pad=0.25', fc='white',
+                              ec='gray', alpha=0.85, lw=0.7),
+                    arrowprops=dict(arrowstyle='-', color='gray',
+                                   lw=0.8, alpha=0.6),
                     **({'xycoords': ccrs.PlateCarree()._as_mpl_transform(ax)}
                        if use_cartopy else {}))
 
@@ -235,9 +219,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                marker='*', edgecolors='white', linewidths=1.5,
                **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
     ax.annotate('Downtown\nHouston', xy=(-95.35, 29.75),
-                xytext=(6, -18), textcoords='offset points',
+                xytext=(6, -22), textcoords='offset points',
                 fontsize=9, fontweight='bold', color='black', zorder=11,
-                bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.8),
+                bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.85),
                 **({'xycoords': ccrs.PlateCarree()._as_mpl_transform(ax)}
                    if use_cartopy else {}))
 
@@ -254,7 +238,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
     ax.annotate(f"WRF domain max\n{peak_val:.1f} m/s @ {peak_time_str}",
                 xy=(peak_lon, peak_lat),
-                xytext=(10, -20), textcoords='offset points',
+                xytext=(10, -25), textcoords='offset points',
                 fontsize=8.5, fontweight='bold', zorder=11,
                 bbox=dict(boxstyle='round,pad=0.3', fc='lightyellow',
                           ec='black', alpha=0.9, lw=1.0),
@@ -263,17 +247,19 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                    if use_cartopy else {}))
 
     # ---- Colorbar ----------------------------------------------------------
-    cbar = plt.colorbar(pm, ax=ax, pad=0.02, shrink=0.85)
-    cbar.set_label('Peak 10-m Wind Speed (m/s)\n'
+    cbar = plt.colorbar(pm, ax=ax, pad=0.02, shrink=0.85,
+                        extend='min')
+    cbar.set_label(f'Peak 10-m Wind Speed (m/s, ≥{THRESH:.0f} m/s shown)\n'
                    '[WRF swath = background  |  ASOS = filled circles]',
                    fontsize=10)
+    cbar.ax.tick_params(labelsize=9)
 
     # ---- Legend ------------------------------------------------------------
     legend_elements = [
         Line2D([0], [0], marker='o', color='w',
                markerfacecolor='tomato', markeredgecolor='black',
                markersize=12, markeredgewidth=2,
-               label='ASOS station (color = observed peak gust)'),
+               label='ASOS station — label: Obs/WRF peak (m/s)'),
         Line2D([0], [0], marker='*', color='w',
                markerfacecolor='black', markeredgecolor='white',
                markersize=14, markeredgewidth=1.5,
@@ -282,10 +268,6 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                markerfacecolor='white', markeredgecolor='black',
                markersize=14, markeredgewidth=2,
                label='WRF domain-wide wind maximum'),
-        Line2D([0], [0], color='#1565C0', lw=2.5,
-               label='WRF peak timing: 18-00Z'),
-        Line2D([0], [0], color='#2E7D32', lw=2.5,
-               label='WRF peak timing: 00-02Z'),
     ]
     ax.legend(handles=legend_elements, loc='lower left',
               fontsize=9, framealpha=0.92,
@@ -310,9 +292,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         'Houston Derecho — 16 May 2024   '
         f'(Event window: {event_start.strftime("%H:%MZ")} – '
         f'{event_end.strftime("%H:%MZ")})\n'
-        'Background = WRF peak wind at each grid point  |  '
+        f'Background = WRF peak wind at each grid point (≥{THRESH:.0f} m/s)  |  '
         'Circles = ASOS observed peak gust  |  '
-        'Contours = timing of WRF wind maximum',
+        'Station labels = Obs/WRF (m/s)',
         fontsize=11, fontweight='bold', pad=10)
 
     plt.tight_layout()
