@@ -295,7 +295,7 @@ def _save_figure(fig, output_html, output_png):
 # ---------------------------------------------------------------------------
 
 def make_3d_temperature(data, output_html, output_png=None, subsample=3):
-    """3D cold pool temperature anomaly — blues only."""
+    """3D cold pool temperature anomaly — single continuous blue gradient."""
     try:
         import plotly.graph_objects as go
     except ImportError:
@@ -304,13 +304,12 @@ def make_3d_temperature(data, output_html, output_png=None, subsample=3):
 
     lat, lon = data['lat'], data['lon']
     HGT, T_anom = data['HGT_AGL'], data['T_anom']
-    T2_anom, target_dt = data['T2_anom'], data['target_dt']
+    target_dt = data['target_dt']
     max_h, nz = data['max_height'], T_anom.shape[0]
 
     ss = subsample
     lat_s = lat[::ss, ::ss];  lon_s = lon[::ss, ::ss]
     HGT_s = HGT[:, ::ss, ::ss];  T_s = T_anom[:, ::ss, ::ss]
-    T2_s  = T2_anom[::ss, ::ss]
 
     ok = HGT_s <= max_h
     lon_f = lon_s[np.newaxis].repeat(nz, 0)[ok].flatten()
@@ -320,59 +319,40 @@ def make_3d_temperature(data, output_html, output_png=None, subsample=3):
 
     fig = go.Figure()
 
-    # Cold pool outer (T < -2K)
+    # Single trace — all points where T < -2K, one continuous gradient
     cp = T_f < -2
     if cp.sum() > 100:
+        t_min = float(np.percentile(T_f[cp], 2))  # robust min
         fig.add_trace(go.Scatter3d(
             x=lon_f[cp], y=lat_f[cp], z=hgt_f[cp],
             mode='markers',
             marker=dict(
                 size=3,
                 color=T_f[cp],
-                colorscale=[[0,'#08306B'],[0.3,'#2171B5'],
-                            [0.6,'#6BAED6'],[1,'#C6DBEF']],
-                cmin=T_f[cp].min(), cmax=-2,
-                opacity=0.35,
-                colorbar=dict(title=dict(text='T Anomaly (K)',
-                                         font=dict(size=12)),
-                              x=1.02, len=0.7, y=0.5),
+                colorscale=[[0,'#08306B'],[0.25,'#2171B5'],
+                            [0.55,'#6BAED6'],[0.8,'#BDD7E7'],
+                            [1.0,'#EFF3FF']],
+                cmin=t_min,
+                cmax=-2,
+                opacity=0.4,
+                colorbar=dict(
+                    title=dict(text='T Anomaly (K)', font=dict(size=12)),
+                    x=1.02, len=0.7, y=0.5,
+                    tickfont=dict(size=11),
+                ),
             ),
             name='Cold Pool (T < −2K)',
         ))
 
-    # Cold pool core (T < -5K)
-    core = T_f < -5
-    if core.sum() > 50:
-        fig.add_trace(go.Scatter3d(
-            x=lon_f[core], y=lat_f[core], z=hgt_f[core],
-            mode='markers',
-            marker=dict(size=5, color='#08306B', opacity=0.75),
-            name='Cold Pool Core (T < −5K)',
-        ))
-
-    # Surface T2 anomaly
-    lon_sfc = lon_s.flatten(); lat_sfc = lat_s.flatten()
-    t2_sfc  = T2_s.flatten()
-    sfc_cp  = t2_sfc < -2
-    if sfc_cp.sum() > 0:
-        fig.add_trace(go.Scatter3d(
-            x=lon_sfc[sfc_cp], y=lat_sfc[sfc_cp],
-            z=np.zeros(sfc_cp.sum()),
-            mode='markers',
-            marker=dict(size=4, color=t2_sfc[sfc_cp],
-                        colorscale='Blues_r', cmin=-8, cmax=0,
-                        opacity=0.85, symbol='square'),
-            name='Surface Cold Pool (T2 < −2K)',
-        ))
-
     _add_markers(fig, lon_s, lat_s)
 
+    t_min_label = float(np.min(T_f[T_f < -2])) if (T_f < -2).any() else -2
     fig.update_layout(
         title=dict(
-            text=(f'WRF Cold Pool Temperature Structure — Houston Derecho<br>'
+            text=(f'WRF Cold Pool Temperature Anomaly — Houston Derecho<br>'
                   f'{target_dt.strftime("%Y-%m-%d %H:%MZ")}  |  '
-                  f'Blue = temperature anomaly < −2K  |  '
-                  f'Darker blue = colder core'),
+                  f'Blue gradient: light = −2K boundary, dark = coldest core '
+                  f'({t_min_label:.1f}K)'),
             font=dict(size=13), x=0.5,
         ),
         scene=_scene_layout(lon_s, lat_s, max_h),
@@ -389,7 +369,7 @@ def make_3d_temperature(data, output_html, output_png=None, subsample=3):
 # ---------------------------------------------------------------------------
 
 def make_3d_winds(data, output_html, output_png=None, subsample=3):
-    """3D wind speed structure — warm colorscale only."""
+    """3D wind speed structure — single continuous warm gradient."""
     try:
         import plotly.graph_objects as go
     except ImportError:
@@ -398,13 +378,12 @@ def make_3d_winds(data, output_html, output_png=None, subsample=3):
 
     lat, lon = data['lat'], data['lon']
     HGT, WSPD = data['HGT_AGL'], data['WSPD']
-    WSPD_sfc, target_dt = data['WSPD_sfc'], data['target_dt']
+    target_dt = data['target_dt']
     max_h, nz = data['max_height'], WSPD.shape[0]
 
     ss = subsample
     lat_s = lat[::ss, ::ss];  lon_s = lon[::ss, ::ss]
     HGT_s = HGT[:, ::ss, ::ss];  W_s = WSPD[:, ::ss, ::ss]
-    Ws_s  = WSPD_sfc[::ss, ::ss]
 
     ok = HGT_s <= max_h
     lon_f = lon_s[np.newaxis].repeat(nz, 0)[ok].flatten()
@@ -414,58 +393,41 @@ def make_3d_winds(data, output_html, output_png=None, subsample=3):
 
     fig = go.Figure()
 
-    # Wind volume (>10 m/s) — transparent
-    wm = W_f > 10
+    # Single trace — all points above threshold, one continuous gradient
+    WIND_THRESH = 8.0
+    wm = W_f > WIND_THRESH
     if wm.sum() > 0:
+        w_max = float(np.percentile(W_f[wm], 98))
         fig.add_trace(go.Scatter3d(
             x=lon_f[wm], y=lat_f[wm], z=hgt_f[wm],
             mode='markers',
             marker=dict(
-                size=3, color=W_f[wm],
-                colorscale='YlOrRd', cmin=10, cmax=28,
-                opacity=0.20,
-                colorbar=dict(title=dict(text='Wind Speed (m/s)',
-                                         font=dict(size=12)),
-                              x=1.02, len=0.7, y=0.5),
+                size=3,
+                color=W_f[wm],
+                colorscale='YlOrRd',
+                cmin=WIND_THRESH,
+                cmax=w_max,
+                opacity=0.35,
+                colorbar=dict(
+                    title=dict(text='Wind Speed (m/s)', font=dict(size=12)),
+                    x=1.02, len=0.7, y=0.5,
+                    tickfont=dict(size=11),
+                ),
             ),
-            name='Wind Speed >10 m/s',
-        ))
-
-    # Strong wind core (>18 m/s) — opaque
-    sm = W_f > 18
-    if sm.sum() > 0:
-        fig.add_trace(go.Scatter3d(
-            x=lon_f[sm], y=lat_f[sm], z=hgt_f[sm],
-            mode='markers',
-            marker=dict(size=5, color=W_f[sm],
-                        colorscale='YlOrRd', cmin=10, cmax=28,
-                        opacity=0.75),
-            name='Strong Wind Core (>18 m/s)',
-        ))
-
-    # Surface wind
-    lon_sfc = lon_s.flatten(); lat_sfc = lat_s.flatten()
-    ws_sfc  = Ws_s.flatten()
-    sw = ws_sfc > 8
-    if sw.sum() > 0:
-        fig.add_trace(go.Scatter3d(
-            x=lon_sfc[sw], y=lat_sfc[sw],
-            z=np.zeros(sw.sum()),
-            mode='markers',
-            marker=dict(size=4, color=ws_sfc[sw],
-                        colorscale='YlOrRd', cmin=5, cmax=25,
-                        opacity=0.85, symbol='square'),
-            name='Surface Wind >8 m/s',
+            name=f'Wind Speed >{WIND_THRESH:.0f} m/s',
         ))
 
     _add_markers(fig, lon_s, lat_s)
 
+    w_max_label = float(np.max(W_f[W_f > WIND_THRESH])) \
+                  if (W_f > WIND_THRESH).any() else WIND_THRESH
     fig.update_layout(
         title=dict(
             text=(f'WRF Wind Speed Structure — Houston Derecho<br>'
                   f'{target_dt.strftime("%Y-%m-%d %H:%MZ")}  |  '
-                  f'Yellow→Red = wind speed  |  '
-                  f'Strong winds aloft, weak at surface over Houston'),
+                  f'Yellow→Red gradient: {WIND_THRESH:.0f} m/s → '
+                  f'{w_max_label:.0f} m/s  |  '
+                  f'Note weak winds at surface over Houston (gold star)'),
             font=dict(size=13), x=0.5,
         ),
         scene=_scene_layout(lon_s, lat_s, max_h),
