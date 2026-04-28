@@ -26,6 +26,8 @@ import pandas as pd
 from netCDF4 import Dataset
 from pathlib import Path
 import plotly.graph_objects as go
+import cartopy.feature as cfeature
+import shapely.geometry as sgeom
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -203,6 +205,33 @@ def _add_markers(fig, lon_s, lat_s):
                 name=stn,
                 showlegend=False,
             ))
+    
+    coast = cfeature.COASTLINE.with_scale('10m')
+    lon_min, lon_max = float(lon_s.min()), float(lon_s.max())
+    lat_min, lat_max = float(lat_s.min()), float(lat_s.max())
+    clip_box = sgeom.box(lon_min, lat_min, lon_max, lat_max)
+
+    coast_lons, coast_lats = [], []
+    for geom in coast.geometries():
+        clipped = geom.intersection(clip_box)
+        if clipped.is_empty:
+            continue
+        segs = [clipped] if clipped.geom_type == 'LineString' \
+                else list(clipped.geoms)
+        for seg in segs:
+            xs, ys = seg.xy
+            coast_lons.extend(list(xs) + [None])
+            coast_lats.extend(list(ys) + [None])
+
+    if coast_lons:
+        fig.add_trace(go.Scatter3d(
+            x=coast_lons, y=coast_lats,
+            z=[0 if v is not None else None for v in coast_lons],
+            mode='lines',
+            line=dict(color='black', width=2),
+            name='Coastline',
+            showlegend=False,
+        ))
 
     fig.add_trace(go.Scatter3d(
         x=[-95.35], y=[29.75], z=[0],
@@ -293,9 +322,7 @@ def make_3d_temperature(data, output_html, output_png=None, subsample=3):
             marker=dict(
                 size=3,
                 color=T_f[cp],
-                colorscale=[[0,'#08306B'],[0.25,'#2171B5'],
-                            [0.55,'#6BAED6'],[0.8,'#BDD7E7'],
-                            [1.0,'#EFF3FF']],
+                colorscale='Blues',
                 cmin=t_min,
                 cmax=-2,
                 opacity=0.4,
@@ -359,7 +386,7 @@ def make_3d_winds(data, output_html, output_png=None, subsample=3):
             marker=dict(
                 size=3,
                 color=W_f[wm],
-                colorscale='YlGn',
+                colorscale='YlOrRd',
                 cmin=WIND_THRESH,
                 cmax=w_max,
                 opacity=0.35,
