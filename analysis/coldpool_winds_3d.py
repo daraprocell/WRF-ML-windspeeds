@@ -10,8 +10,7 @@ Shows the cold pool as a 3D temperature anomaly isosurface, with:
   - ASOS station markers at surface
   - Houston reference point
 
-Produces an interactive HTML file you can rotate/zoom in any browser,
-plus a static PNG for publications.
+Produces an interactive HTML file.
 
 Example use:
     python coldpool_3d.py \
@@ -19,9 +18,6 @@ Example use:
         --time "2024-05-16 23:00" \
         --baseline-end "2024-05-16 12:00" \
         --output figures/coldpool_3d.html
-
-Requirements:
-    pip install plotly kaleido --break-system-packages
 """
 
 import argparse
@@ -32,7 +28,6 @@ from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
-# Physical constants
 R_cp = 0.2854
 P0   = 100000.0
 
@@ -46,9 +41,6 @@ HOUSTON_STATIONS = {
     'KTME': (29.81, -95.90),
 }
 
-# ---------------------------------------------------------------------------
-# Data extraction
-# ---------------------------------------------------------------------------
 
 def load_wrf_times(wrfout_files):
     entries = []
@@ -85,9 +77,7 @@ def extract_3d_fields(wrfout_files, target_time, baseline_end,
     diffs      = [abs((dt - target_dt_req).total_seconds()) for _, _, dt in all_times]
     target_idx = int(np.argmin(diffs))
     target_fpath, target_tidx, target_dt = all_times[target_idx]
-    print(f"Target time: {target_dt} (requested: {target_dt_req})")
 
-    # Load WRF grid
     with Dataset(target_fpath, 'r') as nc:
         wrf_lat = nc.variables['XLAT'][0, :, :]
         wrf_lon = nc.variables['XLONG'][0, :, :]
@@ -105,12 +95,8 @@ def extract_3d_fields(wrfout_files, target_time, baseline_end,
     sub_lat = wrf_lat[j_min:j_max, i_min:i_max]
     sub_lon = wrf_lon[j_min:j_max, i_min:i_max]
 
-    print(f"Domain subset: {j_max-j_min} x {i_max-i_min} grid points")
-
-    # Compute temperature baseline from pre-storm times
     baseline_times = [(f, t, dt) for f, t, dt in all_times
                       if dt <= baseline_end_dt]
-    print(f"Computing baseline from {len(baseline_times)} time steps...")
 
     T_baseline_sum = None
     T2_baseline_sum = None
@@ -138,8 +124,6 @@ def extract_3d_fields(wrfout_files, target_time, baseline_end,
     T_baseline  = T_baseline_sum / n_baseline
     T2_baseline = T2_baseline_sum / n_baseline
 
-    # Extract target time fields
-    print(f"Extracting 3D fields at {target_dt}...")
     with Dataset(target_fpath, 'r') as nc:
         T_pert = nc.variables['T'][target_tidx, :, j_min:j_max, i_min:i_max]
         P_pert = nc.variables['P'][target_tidx, :, j_min:j_max, i_min:i_max]
@@ -202,13 +186,8 @@ def extract_3d_fields(wrfout_files, target_time, baseline_end,
 
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
 def _add_markers(fig, lon_s, lat_s):
     """Add ASOS stations and Houston marker to a Plotly figure."""
-    import plotly.graph_objects as go
 
     for stn, (slat, slon) in HOUSTON_STATIONS.items():
         if (lon_s.min() <= slon <= lon_s.max() and
@@ -216,7 +195,7 @@ def _add_markers(fig, lon_s, lat_s):
             fig.add_trace(go.Scatter3d(
                 x=[slon], y=[slat], z=[0],
                 mode='markers+text',
-                marker=dict(size=7, color='black', symbol='diamond'),
+                marker=dict(size=5, color='black', symbol='diamond'),
                 text=[stn],
                 textposition='top center',
                 textfont=dict(size=9, color='black'),
@@ -224,11 +203,10 @@ def _add_markers(fig, lon_s, lat_s):
                 showlegend=False,
             ))
 
-    # Downtown Houston marker (use diamond since star not supported in 3D)
     fig.add_trace(go.Scatter3d(
         x=[-95.35], y=[29.75], z=[0],
         mode='markers+text',
-        marker=dict(size=14, color='gold',
+        marker=dict(size=6, color='gold',
                     symbol='diamond',
                     line=dict(color='black', width=2)),
         text=['Downtown Houston'],
@@ -280,27 +258,13 @@ def _save_figure(fig, output_html, output_png):
     output_html = Path(output_html)
     output_html.parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(str(output_html))
-    print(f"Interactive HTML saved: {output_html}")
-    if output_png:
-        try:
-            fig.write_image(str(Path(output_png)), scale=2)
-            print(f"Static PNG saved: {output_png}")
-        except Exception as e:
-            print(f"  PNG export failed: {e}")
-            print("  Run: pip install kaleido --break-system-packages")
 
 
-# ---------------------------------------------------------------------------
-# Figure 1: Temperature anomaly (cold pool structure — blues only)
-# ---------------------------------------------------------------------------
+
+# Figure 1: Temperature anomaly 
 
 def make_3d_temperature(data, output_html, output_png=None, subsample=3):
     """3D cold pool temperature anomaly — single continuous blue gradient."""
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
-        print("Install plotly: pip install plotly --break-system-packages")
-        return
 
     lat, lon = data['lat'], data['lon']
     HGT, T_anom = data['HGT_AGL'], data['T_anom']
@@ -319,10 +283,9 @@ def make_3d_temperature(data, output_html, output_png=None, subsample=3):
 
     fig = go.Figure()
 
-    # Single trace — all points where T < -2K, one continuous gradient
     cp = T_f < -2
     if cp.sum() > 100:
-        t_min = float(np.percentile(T_f[cp], 2))  # robust min
+        t_min = float(np.percentile(T_f[cp], 2)) 
         fig.add_trace(go.Scatter3d(
             x=lon_f[cp], y=lat_f[cp], z=hgt_f[cp],
             mode='markers',
@@ -350,9 +313,7 @@ def make_3d_temperature(data, output_html, output_png=None, subsample=3):
     fig.update_layout(
         title=dict(
             text=(f'WRF Cold Pool Temperature Anomaly — Houston Derecho<br>'
-                  f'{target_dt.strftime("%Y-%m-%d %H:%MZ")}  |  '
-                  f'Blue gradient: light = −2K boundary, dark = coldest core '
-                  f'({t_min_label:.1f}K)'),
+                  f'{target_dt.strftime("%Y-%m-%d %H:%MZ")}'),
             font=dict(size=13), x=0.5,
         ),
         scene=_scene_layout(lon_s, lat_s, max_h),
@@ -364,17 +325,10 @@ def make_3d_temperature(data, output_html, output_png=None, subsample=3):
     _save_figure(fig, output_html, output_png)
 
 
-# ---------------------------------------------------------------------------
-# Figure 2: Wind speed structure (warm colorscale only)
-# ---------------------------------------------------------------------------
+# Figure 2: Wind speed
 
 def make_3d_winds(data, output_html, output_png=None, subsample=3):
     """3D wind speed structure — single continuous warm gradient."""
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
-        print("Install plotly: pip install plotly --break-system-packages")
-        return
 
     lat, lon = data['lat'], data['lon']
     HGT, WSPD = data['HGT_AGL'], data['WSPD']
@@ -404,7 +358,7 @@ def make_3d_winds(data, output_html, output_png=None, subsample=3):
             marker=dict(
                 size=3,
                 color=W_f[wm],
-                colorscale='YlOrRd',
+                colorscale='Magma_r',
                 cmin=WIND_THRESH,
                 cmax=w_max,
                 opacity=0.35,
@@ -425,9 +379,7 @@ def make_3d_winds(data, output_html, output_png=None, subsample=3):
         title=dict(
             text=(f'WRF Wind Speed Structure — Houston Derecho<br>'
                   f'{target_dt.strftime("%Y-%m-%d %H:%MZ")}  |  '
-                  f'Yellow→Red gradient: {WIND_THRESH:.0f} m/s → '
-                  f'{w_max_label:.0f} m/s  |  '
-                  f'Note weak winds at surface over Houston (gold star)'),
+                  f'{w_max_label:.0f} m/s'),
             font=dict(size=13), x=0.5,
         ),
         scene=_scene_layout(lon_s, lat_s, max_h),
@@ -439,9 +391,6 @@ def make_3d_winds(data, output_html, output_png=None, subsample=3):
     _save_figure(fig, output_html, output_png)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
@@ -458,7 +407,6 @@ def main():
     parser.add_argument('--output-dir',   default='figures')
     args = parser.parse_args()
 
-    print("Extracting WRF 3D fields...")
     data = extract_3d_fields(
         args.wrfout,
         target_time  = args.time,
@@ -470,7 +418,6 @@ def main():
 
     out = Path(args.output_dir)
 
-    print("\nBuilding temperature figure...")
     make_3d_temperature(
         data,
         output_html = out / 'coldpool_3d_temperature.html',
@@ -478,17 +425,12 @@ def main():
         subsample   = args.subsample,
     )
 
-    print("\nBuilding wind figure...")
     make_3d_winds(
         data,
         output_html = out / 'coldpool_3d_winds.html',
         output_png  = out / 'coldpool_3d_winds.png',
         subsample   = args.subsample,
     )
-
-    print("\nDone! Copy both HTML files to your local machine to view:")
-    print(f"  scp procell2@keeling:.../{out}/coldpool_3d_temperature.html ~/Desktop/")
-    print(f"  scp procell2@keeling:.../{out}/coldpool_3d_winds.html ~/Desktop/")
 
 
 if __name__ == '__main__':
