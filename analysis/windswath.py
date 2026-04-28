@@ -312,8 +312,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         x_pos += w
 
     # Draw header separator
-    tbl_ax.axhline(header_y - 0.07, color='#2C3E50', lw=1.5,
-                   transform=tbl_ax.transAxes)
+    tbl_ax.axhline(header_y - 0.07, color='#2C3E50', lw=1.5)
 
     # Data rows
     row_height = 0.72 / max(len(table_rows), 1)
