@@ -349,17 +349,17 @@ def make_3d_winds(data, output_html, output_png=None, subsample=3):
     fig = go.Figure()
 
     # Single trace — all points above threshold, one continuous gradient
-    WIND_THRESH = 8.0
+    WIND_THRESH = 2.0
     wm = W_f > WIND_THRESH
     if wm.sum() > 0:
-        w_max = float(np.percentile(W_f[wm], 98))
+        w_max = float(np.percentile(W_f[wm], 99))
         fig.add_trace(go.Scatter3d(
             x=lon_f[wm], y=lat_f[wm], z=hgt_f[wm],
             mode='markers',
             marker=dict(
                 size=3,
                 color=W_f[wm],
-                colorscale='Magma_r',
+                colorscale='YlGn',
                 cmin=WIND_THRESH,
                 cmax=w_max,
                 opacity=0.35,
