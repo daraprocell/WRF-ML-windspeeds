@@ -224,11 +224,12 @@ def _add_markers(fig, lon_s, lat_s):
                 showlegend=False,
             ))
 
-    # Downtown Houston star + vertical reference line
+    # Downtown Houston marker (use diamond since star not supported in 3D)
     fig.add_trace(go.Scatter3d(
         x=[-95.35], y=[29.75], z=[0],
         mode='markers+text',
-        marker=dict(size=12, color='gold', symbol='star',
+        marker=dict(size=14, color='gold',
+                    symbol='diamond',
                     line=dict(color='black', width=2)),
         text=['Downtown Houston'],
         textposition='top center',
