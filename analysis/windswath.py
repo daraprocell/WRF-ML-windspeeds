@@ -183,9 +183,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         dot_color = cmap(norm(min(max(obs_gust, vmin), vmax))) \
                     if not np.isnan(obs_gust) else 'gray'
 
-        # Station dot
-        ax.scatter(slon, slat, c=[dot_color], s=200, zorder=8,
-                   edgecolors='black', linewidths=1.8, marker='o',
+        # Station dot — slightly smaller
+        ax.scatter(slon, slat, c=[dot_color], s=150, zorder=8,
+                   edgecolors='black', linewidths=1.5, marker='o',
                    **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
 
         # Tiny station name only — no numbers on the map
@@ -327,7 +327,6 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                                 transform=tbl_ax.transAxes, zorder=0))
 
         bias     = row_data['diff']
-        bias_col = '#C0392B' if bias < -3 else ('#27AE60' if bias > 3 else '#7F8C8D')
 
         row_vals = [
             row_data['station'],
@@ -336,7 +335,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
             f"{row_data['wrf']:.1f}",
             f"{bias:+.1f}",
         ]
-        row_colors = ['black', '#555555', 'black', 'black', bias_col]
+        row_colors  = ['black', '#555555', 'black', 'black', 'black']
         row_weights = ['bold', 'normal', 'bold', 'normal', 'bold']
 
         x_pos = 0.0
@@ -352,13 +351,6 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     tbl_ax.text(0.5, 0.99,
                 'ASOS Station Comparison — Observed Peak Gust vs WRF at Station Grid Point',
                 ha='center', va='top', fontsize=9, fontweight='bold',
-                transform=tbl_ax.transAxes)
-
-    # Bias color legend for table
-    tbl_ax.text(0.0, 0.01,
-                'Bias color: red = WRF underestimates >3 m/s  |  '
-                'green = WRF overestimates >3 m/s  |  gray = within 3 m/s',
-                ha='left', va='bottom', fontsize=7.5, color='#555555',
                 transform=tbl_ax.transAxes)
 
     plt.savefig(output_path, dpi=200, bbox_inches='tight')
