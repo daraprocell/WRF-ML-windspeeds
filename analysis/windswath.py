@@ -117,7 +117,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     # ---- Colormap and normalization ----------------------------------------
     THRESH = 12.0   # only show winds above this threshold
     vmin, vmax = THRESH, 30
-    cmap = plt.cm.YlOrRd
+    # plasma: starts at visible purple-blue at threshold, through orange to yellow
+    # at maximum — no pale colors that blend into white background
+    cmap = plt.cm.plasma_r
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
     # ---- Figure setup with cartopy -----------------------------------------
@@ -200,8 +202,8 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                    edgecolors='black', linewidths=2.0, marker='o',
                    **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
 
-        # Compact single-line label
-        label_text = f"{station}: {obs_gust:.0f}/{wrf_at_station:.0f} m/s"
+        # Compact single-line label with vs separator
+        label_text = f"{station}: {obs_gust:.0f} vs {wrf_at_station:.0f} m/s"
         xoff, yoff = label_offsets.get(station, (8, 6))
 
         ax.annotate(label_text, xy=(slon, slat),
@@ -218,12 +220,6 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     ax.scatter(-95.35, 29.75, c='black', s=180, zorder=10,
                marker='*', edgecolors='white', linewidths=1.5,
                **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
-    ax.annotate('Downtown\nHouston', xy=(-95.35, 29.75),
-                xytext=(6, -22), textcoords='offset points',
-                fontsize=9, fontweight='bold', color='black', zorder=11,
-                bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.85),
-                **({'xycoords': ccrs.PlateCarree()._as_mpl_transform(ax)}
-                   if use_cartopy else {}))
 
     # ---- WRF domain-wide peak location -------------------------------------
     peak_idx      = np.unravel_index(np.argmax(max_wspd), max_wspd.shape)
@@ -250,9 +246,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     cbar = plt.colorbar(pm, ax=ax, pad=0.02, shrink=0.85,
                         extend='min')
     cbar.set_label(f'Peak 10-m Wind Speed (m/s, ≥{THRESH:.0f} m/s shown)\n'
-                   '[WRF swath = background  |  ASOS = filled circles]',
+                   '[WRF swath = background  |  ASOS = filled circles]\n'
+                   'Station labels: Obs vs WRF (m/s)',
                    fontsize=10)
-    cbar.ax.tick_params(labelsize=9)
 
     # ---- Legend ------------------------------------------------------------
     legend_elements = [
