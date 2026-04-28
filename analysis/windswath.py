@@ -168,22 +168,8 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     )
     asos_df = asos_df[in_domain].copy()
 
-    # Manual label offsets (pixels) per station to avoid overlap
-    label_offsets = {
-        'KHOU': ( 10, -35),
-        'KIAH': ( 55,  10),
-        'KDWH': ( 10,  18),
-        'KSGR': (-90, -20),
-        'KTME': (-100,  10),
-        'KCLL': (-85,  12),
-        'KGLS': (  8, -32),
-        'KBPT': (  8,  12),
-        'KLCH': (  8,  12),
-        'KLFT': (  8, -32),
-        'KMSY': (-85, -28),
-        'KNEW': (  8,  12),
-        'KBTR': (  8,  12),
-    }
+    # Collect table data while plotting dots
+    table_rows = []
 
     for idx, row in asos_df.iterrows():
         slat, slon = row['lat'], row['lon']
@@ -197,23 +183,30 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         dot_color = cmap(norm(min(max(obs_gust, vmin), vmax))) \
                     if not np.isnan(obs_gust) else 'gray'
 
-        ax.scatter(slon, slat, c=[dot_color], s=220, zorder=8,
-                   edgecolors='black', linewidths=2.0, marker='o',
+        # Station dot
+        ax.scatter(slon, slat, c=[dot_color], s=200, zorder=8,
+                   edgecolors='black', linewidths=1.8, marker='o',
                    **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
 
-        # Compact single-line label with vs separator
-        label_text = f"{station}: {obs_gust:.0f} vs {wrf_at_station:.0f} m/s"
-        xoff, yoff = label_offsets.get(station, (8, 6))
-
-        ax.annotate(label_text, xy=(slon, slat),
-                    xytext=(xoff, yoff), textcoords='offset points',
-                    fontsize=7.5, fontweight='bold', zorder=9,
-                    bbox=dict(boxstyle='round,pad=0.25', fc='white',
-                              ec='gray', alpha=0.85, lw=0.7),
-                    arrowprops=dict(arrowstyle='-', color='gray',
-                                   lw=0.8, alpha=0.6),
+        # Tiny station name only — no numbers on the map
+        ax.annotate(station, xy=(slon, slat),
+                    xytext=(4, 4), textcoords='offset points',
+                    fontsize=6.5, fontweight='bold', zorder=9,
+                    color='black',
                     **({'xycoords': ccrs.PlateCarree()._as_mpl_transform(ax)}
                        if use_cartopy else {}))
+
+        # Collect for table
+        diff = wrf_at_station - obs_gust
+        table_rows.append({
+            'station':  station,
+            'lat':      slat,
+            'lon':      slon,
+            'obs':      obs_gust,
+            'wrf':      wrf_at_station,
+            'diff':     diff,
+            'color':    dot_color,
+        })
 
     # ---- Downtown Houston marker -------------------------------------------
     ax.scatter(-95.35, 29.75, c='black', s=180, zorder=10,
@@ -231,10 +224,10 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     ax.scatter(peak_lon, peak_lat, c='white', s=300, zorder=10,
                edgecolors='black', linewidths=2.5, marker='*',
                **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
-    ax.annotate(f"WRF domain max\n{peak_val:.1f} m/s @ {peak_time_str}",
+    ax.annotate(f"WRF max\n{peak_val:.1f} m/s\n{peak_time_str}",
                 xy=(peak_lon, peak_lat),
-                xytext=(10, -25), textcoords='offset points',
-                fontsize=8.5, fontweight='bold', zorder=11,
+                xytext=(10, -30), textcoords='offset points',
+                fontsize=8, fontweight='bold', zorder=11,
                 bbox=dict(boxstyle='round,pad=0.3', fc='lightyellow',
                           ec='black', alpha=0.9, lw=1.0),
                 arrowprops=dict(arrowstyle='->', color='black', lw=1.2),
@@ -242,26 +235,24 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                    if use_cartopy else {}))
 
     # ---- Colorbar ----------------------------------------------------------
-    cbar = plt.colorbar(pm, ax=ax, pad=0.02, shrink=0.85,
-                        extend='min')
+    cbar = plt.colorbar(pm, ax=ax, pad=0.02, shrink=0.85, extend='min')
     cbar.set_label(f'Peak 10-m Wind Speed (m/s, ≥{THRESH:.0f} m/s shown)\n'
-                   '[WRF swath = background  |  ASOS = filled circles]\n'
-                   'Station labels: Obs vs WRF (m/s)',
+                   'WRF swath = background  |  ASOS = filled circles',
                    fontsize=10)
 
     # ---- Legend ------------------------------------------------------------
     legend_elements = [
         Line2D([0], [0], marker='o', color='w',
                markerfacecolor='tomato', markeredgecolor='black',
-               markersize=12, markeredgewidth=2,
-               label='ASOS station — label: Obs/WRF peak (m/s)'),
+               markersize=11, markeredgewidth=1.8,
+               label='ASOS station (color = observed peak gust)'),
         Line2D([0], [0], marker='*', color='w',
                markerfacecolor='black', markeredgecolor='white',
-               markersize=14, markeredgewidth=1.5,
+               markersize=13, markeredgewidth=1.5,
                label='Downtown Houston'),
         Line2D([0], [0], marker='*', color='w',
                markerfacecolor='white', markeredgecolor='black',
-               markersize=14, markeredgewidth=2,
+               markersize=13, markeredgewidth=2,
                label='WRF domain-wide wind maximum'),
     ]
     ax.legend(handles=legend_elements, loc='lower left',
@@ -288,30 +279,100 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         f'(Event window: {event_start.strftime("%H:%MZ")} – '
         f'{event_end.strftime("%H:%MZ")})\n'
         f'Background = WRF peak wind at each grid point (≥{THRESH:.0f} m/s)  |  '
-        'Circles = ASOS observed peak gust  |  '
-        'Station labels = Obs/WRF (m/s)',
+        'Circles = ASOS observed peak gust',
         fontsize=11, fontweight='bold', pad=10)
 
-    plt.tight_layout()
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    # ---- Station comparison table (below map) ------------------------------
+    # Sort by observed gust descending
+    table_rows.sort(key=lambda x: x['obs'], reverse=True)
+
+    # Build table axes below the map
+    n_cols  = 5   # station | lat/lon | obs | wrf | bias
+    n_rows  = len(table_rows) + 1  # +1 for header
+
+    # Add a new axes below the main map
+    fig.subplots_adjust(bottom=0.22)
+    tbl_ax = fig.add_axes([0.08, 0.01, 0.84, 0.20])
+    tbl_ax.axis('off')
+
+    col_labels = ['Station', 'Lat / Lon', 'Obs Peak Gust (m/s)',
+                  'WRF at Station (m/s)', 'Bias (WRF − Obs)']
+    col_widths = [0.10, 0.18, 0.22, 0.22, 0.20]
+
+    # Header row
+    header_y = 0.92
+    x_pos = 0.0
+    for label, w in zip(col_labels, col_widths):
+        tbl_ax.text(x_pos + w/2, header_y, label,
+                    ha='center', va='center', fontsize=8.5,
+                    fontweight='bold',
+                    bbox=dict(boxstyle='round,pad=0.3',
+                              fc='#2C3E50', ec='none'),
+                    color='white', transform=tbl_ax.transAxes)
+        x_pos += w
+
+    # Draw header separator
+    tbl_ax.axhline(header_y - 0.07, color='#2C3E50', lw=1.5,
+                   transform=tbl_ax.transAxes)
+
+    # Data rows
+    row_height = 0.72 / max(len(table_rows), 1)
+    for r_idx, row_data in enumerate(table_rows):
+        y = header_y - 0.10 - r_idx * row_height
+        bg_color = '#F8F9FA' if r_idx % 2 == 0 else 'white'
+
+        # Row background
+        tbl_ax.add_patch(
+            mpatches.Rectangle((0, y - row_height * 0.4), 1, row_height * 0.85,
+                                fc=bg_color, ec='none',
+                                transform=tbl_ax.transAxes, zorder=0))
+
+        bias     = row_data['diff']
+        bias_col = '#C0392B' if bias < -3 else ('#27AE60' if bias > 3 else '#7F8C8D')
+
+        row_vals = [
+            row_data['station'],
+            f"{row_data['lat']:.2f}°N, {abs(row_data['lon']):.2f}°W",
+            f"{row_data['obs']:.1f}",
+            f"{row_data['wrf']:.1f}",
+            f"{bias:+.1f}",
+        ]
+        row_colors = ['black', '#555555', 'black', 'black', bias_col]
+        row_weights = ['bold', 'normal', 'bold', 'normal', 'bold']
+
+        x_pos = 0.0
+        for val, w, color, weight in zip(row_vals, col_widths,
+                                          row_colors, row_weights):
+            tbl_ax.text(x_pos + w/2, y, val,
+                        ha='center', va='center',
+                        fontsize=8, color=color, fontweight=weight,
+                        transform=tbl_ax.transAxes)
+            x_pos += w
+
+    # Table title
+    tbl_ax.text(0.5, 0.99,
+                'ASOS Station Comparison — Observed Peak Gust vs WRF at Station Grid Point',
+                ha='center', va='top', fontsize=9, fontweight='bold',
+                transform=tbl_ax.transAxes)
+
+    # Bias color legend for table
+    tbl_ax.text(0.0, 0.01,
+                'Bias color: red = WRF underestimates >3 m/s  |  '
+                'green = WRF overestimates >3 m/s  |  gray = within 3 m/s',
+                ha='left', va='bottom', fontsize=7.5, color='#555555',
+                transform=tbl_ax.transAxes)
+
     plt.savefig(output_path, dpi=200, bbox_inches='tight')
     plt.close()
     print(f"Saved: {output_path}")
 
-    # ---- Print summary table -----------------------------------------------
+    # Print summary to terminal too
     print("\n--- Wind comparison summary ---")
-    print(f"{'Station':8s} | {'Obs gust':10s} | {'WRF at stn':12s} | "
-          f"{'Difference':12s}")
-    print('-' * 52)
-    for _, row in asos_df.iterrows():
-        slat, slon = row['lat'], row['lon']
-        dist = np.sqrt((wrf_lat - slat)**2 + (wrf_lon - slon)**2)
-        i, j = np.unravel_index(np.argmin(dist), dist.shape)
-        wrf_val = max_wspd[i, j]
-        obs_val = row['peak_gust']
-        diff    = wrf_val - obs_val
-        print(f"{row['station']:8s} | {obs_val:8.1f} m/s | "
-              f"{wrf_val:10.1f} m/s | {diff:+.1f} m/s")
+    print(f"{'Station':8s} | {'Obs':8s} | {'WRF':8s} | {'Bias':8s}")
+    print('-' * 40)
+    for r in sorted(table_rows, key=lambda x: x['obs'], reverse=True):
+        print(f"{r['station']:8s} | {r['obs']:6.1f} m/s | "
+              f"{r['wrf']:6.1f} m/s | {r['diff']:+.1f} m/s")
 
 
 # ---------------------------------------------------------------------------
