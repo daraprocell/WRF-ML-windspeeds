@@ -25,7 +25,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import matplotlib
-matplotlib.use('Agg')  # non-interactive backend for Keeling
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.colors as mcolors
@@ -38,9 +38,6 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
-# ---------------------------------------------------------------------------
-# Styling
-# ---------------------------------------------------------------------------
 plt.rcParams.update({
     'font.family':      'DejaVu Sans',
     'font.size':        11,
@@ -59,9 +56,7 @@ C_OBS  = '#2A6EBB'   # observations — blue
 C_CP   = '#5BB85A'   # cold pool arrival — green
 C_GRID = '#DDDDDD'
 
-# ---------------------------------------------------------------------------
-# Utility: haversine distance
-# ---------------------------------------------------------------------------
+
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371.0
     lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
@@ -69,11 +64,6 @@ def haversine(lat1, lon1, lat2, lon2):
     dlon = lon2 - lon1
     a = np.sin(dlat/2)**2 + np.cos(lat1)*np.cos(lat2)*np.sin(dlon/2)**2
     return R * 2 * np.arcsin(np.sqrt(a))
-
-
-# ---------------------------------------------------------------------------
-# WRF extraction
-# ---------------------------------------------------------------------------
 
 def load_wrf_times(wrfout_files):
     """Return list of (file, time_index, datetime) tuples."""
@@ -100,8 +90,6 @@ def extract_wrf_surface(wrfout_files, event_window_start, event_window_end):
     if not wrf_times:
         raise ValueError("No WRF time steps found in event window!")
 
-    print(f"Loading {len(wrf_times)} WRF time steps...")
-
     # Load grid from first file
     with Dataset(wrf_times[0][0], 'r') as nc:
         wrf_lat = nc.variables['XLAT'][0, :, :]
@@ -119,13 +107,13 @@ def extract_wrf_surface(wrfout_files, event_window_start, event_window_end):
             T2   = nc.variables['T2'][tidx, :, :]    # K
             U10  = nc.variables['U10'][tidx, :, :]   # m/s
             V10  = nc.variables['V10'][tidx, :, :]   # m/s
-            PSFC = nc.variables['PSFC'][tidx, :, :]  # Pa → mb
+            PSFC = nc.variables['PSFC'][tidx, :, :]  # Pa to mb
             WSPD = np.sqrt(U10**2 + V10**2)
 
         T2_all.append(T2)
         U10_all.append(U10)
         V10_all.append(V10)
-        PSFC_all.append(PSFC / 100.0)  # Pa → mb
+        PSFC_all.append(PSFC / 100.0)  # Pa to mb
         WSPD_all.append(WSPD)
         dt_all.append(dt)
 
@@ -202,15 +190,13 @@ def extract_wrf_at_station(wrf_data, slat, slon):
 
     return {
         'times': wrf_data['times'],
-        'T2':    wrf_data['T2'][:, i, j] - 273.15,   # K → °C
+        'T2':    wrf_data['T2'][:, i, j] - 273.15,   # K to C
         'WSPD':  wrf_data['WSPD'][:, i, j],
         'PSFC':  wrf_data['PSFC'][:, i, j],
     }
 
 
-# ---------------------------------------------------------------------------
-# Cold pool detection (windowed)
-# ---------------------------------------------------------------------------
+# Cold pool detection in event window
 
 def detect_cold_pool(ts_df, station, event_window_start, event_window_end):
     """
@@ -234,9 +220,7 @@ def detect_cold_pool(ts_df, station, event_window_start, event_window_end):
     return arrival, temp_drop
 
 
-# ---------------------------------------------------------------------------
 # Figure 1: Time series panels
-# ---------------------------------------------------------------------------
 
 def plot_timeseries(asos_df, wrf_data, stations_to_plot,
                     event_window_start, event_window_end,
@@ -269,7 +253,7 @@ def plot_timeseries(asos_df, wrf_data, stations_to_plot,
         wrf_ts = extract_wrf_at_station(wrf_data, meta['lat'], meta['lon'])
         wrf_times = wrf_ts['times']
 
-        # Cold pool arrival (windowed)
+        # Cold pool arrival
         cp_time, cp_drop = detect_cold_pool(
             asos_df, station, event_window_start, event_window_end)
 
@@ -323,12 +307,10 @@ def plot_timeseries(asos_df, wrf_data, stations_to_plot,
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close()
-    print(f"Saved: {output_path}")
+    print("Saved:", output_path)
 
 
-# ---------------------------------------------------------------------------
 # Figure 2: Spatial snapshot at peak time
-# ---------------------------------------------------------------------------
 
 def plot_spatial_snapshot(wrf_data, asos_df, peak_time,
                           event_window_start, event_window_end,
@@ -348,7 +330,7 @@ def plot_spatial_snapshot(wrf_data, asos_df, peak_time,
     # Compute T2 anomaly (relative to first time step in window)
     T2_K     = wrf_data['T2'][peak_idx, :, :]
     T2_base  = wrf_data['T2'][0, :, :]
-    T2_anom  = (T2_K - T2_base)               # K (same as °C for anomaly)
+    T2_anom  = (T2_K - T2_base)               # K (same as C for anomaly)
     WSPD     = wrf_data['WSPD'][peak_idx, :, :]
     U10      = wrf_data['U10'][peak_idx, :, :]
     V10      = wrf_data['V10'][peak_idx, :, :]
@@ -405,7 +387,6 @@ def plot_spatial_snapshot(wrf_data, asos_df, peak_time,
         ax.scatter(slon, slat, c=[color], s=120, zorder=6,
                    edgecolors='k', linewidths=1.2)
 
-        # Cold pool arrival label
         cp_time, _ = detect_cold_pool(asos_df, station,
                                       event_window_start, event_window_end)
         if pd.notna(cp_time):
@@ -417,7 +398,6 @@ def plot_spatial_snapshot(wrf_data, asos_df, peak_time,
                     fontweight='bold', color='k',
                     bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.6))
 
-    # ASOS gust colorbar
     sm = plt.cm.ScalarMappable(cmap=gust_cmap, norm=gust_norm)
     sm.set_array([])
     cbar2 = plt.colorbar(sm, ax=ax, pad=0.08, shrink=0.5, location='right')
@@ -438,9 +418,7 @@ def plot_spatial_snapshot(wrf_data, asos_df, peak_time,
     print(f"Saved: {output_path}")
 
 
-# ---------------------------------------------------------------------------
 # Figure 3: Animated GIF — cold pool sweep
-# ---------------------------------------------------------------------------
 
 def make_coldpool_gif(wrf_data, asos_df, event_window_start, event_window_end,
                       output_path, fps=4):
@@ -499,7 +477,7 @@ def make_coldpool_gif(wrf_data, asos_df, event_window_start, event_window_end,
             slon   = station_meta[station]['lon']
             cp_arr = cp_arrivals[station]
 
-            # Green if cold pool has arrived, otherwise yellow-red scale
+            # Green if cold pool has arrived, otherwise yellow/red scale
             if pd.notna(cp_arr) and dt >= cp_arr:
                 color  = C_CP
                 marker = '*'
@@ -538,7 +516,6 @@ def make_coldpool_gif(wrf_data, asos_df, event_window_start, event_window_end,
 
     plt.close()
 
-    # Write GIF using matplotlib animation
     fig2, ax2 = plt.subplots(figsize=(12, 9))
     im = ax2.imshow(frames[0])
     ax2.axis('off')
@@ -550,16 +527,13 @@ def make_coldpool_gif(wrf_data, asos_df, event_window_start, event_window_end,
     ani = animation.FuncAnimation(fig2, update, frames=len(frames),
                                   interval=1000//fps, blit=True)
 
-    # Save as GIF using pillow writer
     writer = animation.PillowWriter(fps=fps)
     ani.save(output_path, writer=writer)
     plt.close()
-    print(f"Saved: {output_path}")
+    print("Saved:", output_path)
 
 
-# ---------------------------------------------------------------------------
 # Figure 4: Vertical cross section
-# ---------------------------------------------------------------------------
 
 def plot_cross_section(wrfout_files, peak_time, cross_lon,
                        event_window_start, event_window_end,
@@ -646,12 +620,9 @@ def plot_cross_section(wrfout_files, peak_time, cross_lon,
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close()
-    print(f"Saved: {output_path}")
+    print("Saved:", output_path)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
@@ -684,17 +655,14 @@ def main():
     event_window_end    = pd.to_datetime(args.event_window_end)
 
     # Load ASOS time series
-    print("Loading ASOS time series...")
     asos_df = pd.read_csv(args.asos)
     asos_df['valid'] = pd.to_datetime(asos_df['valid'])
 
     # Load WRF surface fields for event window
-    print("Loading WRF surface fields...")
     wrf_data = extract_wrf_surface(
         args.wrfout, event_window_start, event_window_end)
 
     # Figure 1: Time series
-    print("\nGenerating time series figure...")
     stations_to_plot = [s for s in args.stations
                         if s in asos_df['station'].unique()]
     plot_timeseries(
@@ -703,27 +671,24 @@ def main():
         output_dir / f'coldpool_timeseries_{args.event}.png')
 
     # Figure 2: Spatial snapshot
-    print("Generating spatial snapshot figure...")
     plot_spatial_snapshot(
         wrf_data, asos_df, peak_time,
         event_window_start, event_window_end,
         output_dir / f'coldpool_spatial_{args.event}.png')
 
-    # Figure 3: Animated GIF
-    print("Generating animated GIF (this may take a few minutes)...")
+    # Figure 3: GIF
     make_coldpool_gif(
         wrf_data, asos_df, event_window_start, event_window_end,
         output_dir / f'coldpool_sweep_{args.event}.gif',
         fps=args.gif_fps)
 
     # Figure 4: Cross section
-    print("Generating vertical cross section...")
     plot_cross_section(
         args.wrfout, peak_time, args.cross_lon,
         event_window_start, event_window_end,
         output_dir / f'coldpool_crosssection_{args.event}.png')
 
-    print(f"\nAll figures saved to {output_dir}/")
+    print("All figures saved to", output_dir)
 
 
 if __name__ == '__main__':

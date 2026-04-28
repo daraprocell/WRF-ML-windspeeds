@@ -211,7 +211,7 @@ class ASOSDownloader:
             'time_peak_gust': df.loc[gusts.idxmax(), 'valid'] if len(gusts) > 0 else pd.NaT,
             
             'mean_wind': winds.mean() if len(winds) > 0 else np.nan,
-            'max_1hr_mean_wind': winds.rolling(12, min_periods=6).mean().max() if len(winds) > 0 else np.nan,  # 12 obs = 1 hr at 5-min
+            'max_1hr_mean_wind': winds.rolling(12, min_periods=6).mean().max() if len(winds) > 0 else np.nan,  # 12 obs = 1 hr at 5 min
             
             'pct_missing_wind': (df['sknt'].isna().sum() / len(df)) * 100,
             'pct_missing_gust': (df['gust'].isna().sum() / len(df)) * 100,
@@ -284,7 +284,7 @@ def main():
     df = downloader.download_all_stations()
     
     if df.empty:
-        print("ERROR: No data downloaded successfully")
+        print("ERROR: No data downloaded successfully :( ")
         return 1
     
     downloader.save_data(df)
