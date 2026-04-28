@@ -1,5 +1,3 @@
-# WRF-ML-windspeeds
-
 # WRF-ML Wind Speed Bias Correction
 
 A pipeline for simulating severe convective wind events using the Weather Research and
