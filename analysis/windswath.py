@@ -169,21 +169,20 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     asos_df = asos_df[in_domain].copy()
 
     # Manual label offsets (pixels) per station to avoid overlap
-    # Format: 'STATION': (x_offset, y_offset)
     label_offsets = {
-        'KHOU': (-65, -30),
-        'KIAH': ( 10,  10),
-        'KDWH': ( 10,  10),
-        'KSGR': (-65, -30),
-        'KTME': (-75,  10),
-        'KCLL': (-65,  10),
-        'KGLS': (  8, -30),
-        'KBPT': (  8,  10),
-        'KLCH': (  8,  10),
-        'KLFT': (  8, -30),
-        'KMSY': (-65, -30),
-        'KNEW': (  8,  10),
-        'KBTR': (  8,  10),
+        'KHOU': ( 10, -35),
+        'KIAH': ( 55,  10),
+        'KDWH': ( 10,  18),
+        'KSGR': (-90, -20),
+        'KTME': (-100,  10),
+        'KCLL': (-85,  12),
+        'KGLS': (  8, -32),
+        'KBPT': (  8,  12),
+        'KLCH': (  8,  12),
+        'KLFT': (  8, -32),
+        'KMSY': (-85, -28),
+        'KNEW': (  8,  12),
+        'KBTR': (  8,  12),
     }
 
     for idx, row in asos_df.iterrows():
