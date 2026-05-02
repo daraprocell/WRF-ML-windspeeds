@@ -21,7 +21,7 @@ What this figure honestly communicates:
     station level because WRF's storm never passed through the station locations
 
 Example use:
-    python wind_swath_comparison.py \
+    python windswath.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
         --asos data/asos/houston_asos_summary.csv \
         --output figures/wind_swath_comparison.png \
