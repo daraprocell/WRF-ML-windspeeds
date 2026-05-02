@@ -221,16 +221,16 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     peak_time_hr  = time_of_max[peak_idx]
     peak_time_str = f"{int(peak_time_hr):02d}:{int((peak_time_hr % 1)*60):02d}Z"
 
-    ax.scatter(peak_lon, peak_lat, c='white', s=300, zorder=10,
-               edgecolors='black', linewidths=2.5, marker='*',
+    ax.scatter(peak_lon, peak_lat, c='white', s=120, zorder=10,
+               edgecolors='black', linewidths=1.5, marker='*',
                **({'transform': ccrs.PlateCarree()} if use_cartopy else {}))
-    ax.annotate(f"WRF max\n{peak_val:.1f} m/s\n{peak_time_str}",
+    ax.annotate(f"WRF max {peak_val:.1f} m/s",
                 xy=(peak_lon, peak_lat),
-                xytext=(10, -30), textcoords='offset points',
-                fontsize=8, fontweight='bold', zorder=11,
-                bbox=dict(boxstyle='round,pad=0.3', fc='lightyellow',
-                          ec='black', alpha=0.9, lw=1.0),
-                arrowprops=dict(arrowstyle='->', color='black', lw=1.2),
+                xytext=(35, 22), textcoords='offset points',
+                fontsize=7, fontweight='bold', zorder=11,
+                bbox=dict(boxstyle='round,pad=0.2', fc='lightyellow',
+                          ec='black', alpha=0.9, lw=0.8),
+                arrowprops=dict(arrowstyle='->', color='black', lw=1.0),
                 **({'xycoords': ccrs.PlateCarree()._as_mpl_transform(ax)}
                    if use_cartopy else {}))
 
@@ -290,17 +290,18 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     n_cols  = 5   # station | lat/lon | obs | wrf | bias
     n_rows  = len(table_rows) + 1  # +1 for header
 
-    # Add a new axes below the main map
-    fig.subplots_adjust(bottom=0.22)
-    tbl_ax = fig.add_axes([0.08, 0.01, 0.84, 0.20])
+    # Add a new axes below the main map — give more room and lower the table
+    # so the table title doesn't overlap the longitude labels
+    fig.subplots_adjust(bottom=0.30, top=0.93)
+    tbl_ax = fig.add_axes([0.08, 0.01, 0.84, 0.22])
     tbl_ax.axis('off')
 
     col_labels = ['Station', 'Lat / Lon', 'Obs Peak Gust (m/s)',
                   'WRF at Station (m/s)', 'Bias (WRF − Obs)']
     col_widths = [0.10, 0.18, 0.22, 0.22, 0.20]
 
-    # Header row
-    header_y = 0.92
+    # Header row — moved up so we have more vertical room for 18 stations
+    header_y = 0.98
     x_pos = 0.0
     for label, w in zip(col_labels, col_widths):
         tbl_ax.text(x_pos + w/2, header_y, label,
@@ -312,12 +313,12 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         x_pos += w
 
     # Draw header separator
-    tbl_ax.axhline(header_y - 0.07, color='#2C3E50', lw=1.5)
+    tbl_ax.axhline(header_y - 0.05, color='#2C3E50', lw=1.5)
 
     # Data rows
-    row_height = 0.72 / max(len(table_rows), 1)
+    row_height = 0.86 / max(len(table_rows), 1)
     for r_idx, row_data in enumerate(table_rows):
-        y = header_y - 0.10 - r_idx * row_height
+        y = header_y - 0.08 - r_idx * row_height
         bg_color = '#F8F9FA' if r_idx % 2 == 0 else 'white'
 
         # Row background
@@ -347,8 +348,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                         transform=tbl_ax.transAxes)
             x_pos += w
 
-    # Table title
-    tbl_ax.text(0.5, 0.99,
+    # Table title — placed well above the header row so it doesn't overlap
+    # the longitude axis labels of the map above
+    tbl_ax.text(0.5, 1.10,
                 'ASOS Station Comparison — Observed Peak Gust vs WRF at Station Grid Point',
                 ha='center', va='top', fontsize=9, fontweight='bold',
                 transform=tbl_ax.transAxes)
@@ -407,9 +409,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-    ### TO Do
-
-    # 1. Make star of WRF maximum SMALLER so we can see the dark purple color on the map.
-    # 2. adjust the formatting so nothing is getting coeveredup.
