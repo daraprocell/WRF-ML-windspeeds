@@ -243,17 +243,11 @@ def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
         stations=HOUSTON_STATIONS)
 
     # Observed panel
-    if obs_refl is not None:
-        cf2 = plot_refl_panel(
-            axes[1], obs_refl, wrf_lat, wrf_lon,
-            f'NEXRAD Observed Composite Reflectivity\n{peak_dt.strftime("%Y-%m-%d %H:%MZ")}',
-            stations=HOUSTON_STATIONS)
-    else:
-        axes[1].text(0.5, 0.5, 'Observed radar\nnot available',
-                     ha='center', va='center', transform=axes[1].transAxes,
-                     fontsize=14)
-        axes[1].set_title(f'NEXRAD Observed\n{peak_dt.strftime("%Y-%m-%d %H:%MZ")}',
-                          fontsize=11, fontweight='bold')
+
+    cf2 = plot_refl_panel(
+        axes[1], obs_refl, wrf_lat, wrf_lon,
+        f'NEXRAD Observed Composite Reflectivity\n{peak_dt.strftime("%Y-%m-%d %H:%MZ")}',
+        stations=HOUSTON_STATIONS)
 
     plt.colorbar(cf1, ax=axes, label='Composite Reflectivity (dBZ)',
                  orientation='horizontal', pad=0.05, shrink=0.6)
