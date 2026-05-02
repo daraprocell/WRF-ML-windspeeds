@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-wind_swath_comparison.py
+windswath.py
 ------------------------
 Compare WRF maximum wind swath against ASOS observed peak gusts.
 
@@ -14,7 +14,7 @@ Example use:
     python windswath.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
         --asos data/asos/houston_asos_summary.csv \
-        --output figures/wind_swath_comparison.png \
+        --output figures/wind_swath_comparison_d02_n.png \
         --event-start "2024-05-16 18:00" \
         --event-end "2024-05-17 02:00"
 """
@@ -95,7 +95,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     Single-panel wind swath comparison figure.
     """
 
-    THRESH = 9.0   # only show winds above this threshold
+    THRESH = 11.0   # only show winds above this threshold
     vmin, vmax = THRESH, 30
     cmap = plt.cm.plasma_r
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
@@ -130,12 +130,36 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
 
     table_rows = []
 
+    # Approximate degrees per km at this latitude (~30°N)
+    # 1° lat ~ 111 km, 1° lon ~ 96 km at 30°N
+    KM_PER_DEG_LAT = 111.0
+    KM_PER_DEG_LON_AT_30N = 96.0
+    NEIGHBORHOOD_RADIUS_KM = 10.0
+
     for idx, row in asos_df.iterrows():
         slat, slon = row['lat'], row['lon']
 
         dist = np.sqrt((wrf_lat - slat)**2 + (wrf_lon - slon)**2)
         i, j = np.unravel_index(np.argmin(dist), dist.shape)
         wrf_at_station = max_wspd[i, j]
+
+        # Neighborhood max within radius
+        # Convert km radius to degree distance using a conservative metric:
+        # we use Euclidean distance in degrees but bound radius by
+        # km/(km per degree) for both axes
+        dlat_max = NEIGHBORHOOD_RADIUS_KM / KM_PER_DEG_LAT
+        dlon_max = NEIGHBORHOOD_RADIUS_KM / KM_PER_DEG_LON_AT_30N
+        # Build mask of grid points within the radius (haversine-lite using
+        # local-flat-earth approximation
+        dist_km = np.sqrt(
+            ((wrf_lat - slat) * KM_PER_DEG_LAT) ** 2 +
+            ((wrf_lon - slon) * KM_PER_DEG_LON_AT_30N) ** 2
+        )
+        nbhd_mask = dist_km <= NEIGHBORHOOD_RADIUS_KM
+        if nbhd_mask.any():
+            wrf_nbhd_max = max_wspd[nbhd_mask].max()
+        else:
+            wrf_nbhd_max = wrf_at_station  # fallback
 
         obs_gust  = row['peak_gust']
         station   = row['station']
@@ -147,25 +171,37 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                    edgecolors='black', linewidths=1.5, marker='o',
                    transform=ccrs.PlateCarree())
 
+        # 10 km neighborhood circle (visual reference for the neighborhood max)
+        circle_npts = 60
+        theta       = np.linspace(0, 2 * np.pi, circle_npts)
+        circle_lats = slat + dlat_max * np.cos(theta)
+        circle_lons = slon + dlon_max * np.sin(theta)
+        ax.plot(circle_lons, circle_lats,
+                color='black', lw=0.8, ls='--', alpha=0.55, zorder=7,
+                transform=ccrs.PlateCarree())
+
         ax.annotate(station, xy=(slon, slat),
                     xytext=(4, 4), textcoords='offset points',
                     fontsize=6.5, fontweight='bold', zorder=9,
                     color='black',
                     xycoords=ccrs.PlateCarree()._as_mpl_transform(ax))
 
-        diff = wrf_at_station - obs_gust
+        diff      = wrf_at_station - obs_gust
+        diff_nbhd = wrf_nbhd_max   - obs_gust
         table_rows.append({
-            'station':  station,
-            'lat':      slat,
-            'lon':      slon,
-            'obs':      obs_gust,
-            'wrf':      wrf_at_station,
-            'diff':     diff,
-            'color':    dot_color,
+            'station':   station,
+            'lat':       slat,
+            'lon':       slon,
+            'obs':       obs_gust,
+            'wrf':       wrf_at_station,
+            'wrf_nbhd':  wrf_nbhd_max,
+            'diff':      diff,
+            'diff_nbhd': diff_nbhd,
+            'color':     dot_color,
         })
 
     # Downtown Houston marker
-    ax.scatter(-95.35, 29.75, c='black', s=180, zorder=10,
+    ax.scatter(-95.35, 29.75, c='black', s=180, 
                marker='*', edgecolors='white', linewidths=1.5,
                transform=ccrs.PlateCarree())
 
@@ -225,16 +261,23 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     # Sort by observed gust descending
     table_rows.sort(key=lambda x: x['obs'], reverse=True)
 
-    n_cols  = 5   # station | lat/lon | obs | wrf | bias
+    n_cols  = 7   # station | lat/lon | obs | wrf | bias | wrf_10km | bias_10km
     n_rows  = len(table_rows) + 1
 
     fig.subplots_adjust(bottom=0.30, top=0.93)
-    tbl_ax = fig.add_axes([0.08, 0.01, 0.84, 0.22])
+    tbl_ax = fig.add_axes([0.05, 0.01, 0.90, 0.22])
     tbl_ax.axis('off')
 
-    col_labels = ['Station', 'Lat / Lon', 'Obs Peak Gust (m/s)',
-                  'WRF at Station (m/s)', 'Bias (WRF \u2212 Obs)']
-    col_widths = [0.10, 0.18, 0.22, 0.22, 0.20]
+    col_labels = [
+        'Station',
+        'Lat / Lon',
+        'Obs Peak Gust\n(m/s)',
+        'WRF at Station\n(m/s)',
+        'Bias\n(WRF \u2212 Obs)',
+        'WRF max\nwithin 10 km (m/s)',
+        'Bias 10 km\n(WRF \u2212 Obs)',
+    ]
+    col_widths = [0.08, 0.14, 0.14, 0.14, 0.14, 0.18, 0.18]
 
     header_y = 0.98
     x_pos = 0.0
@@ -259,7 +302,8 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                                 fc=bg_color, ec='none',
                                 transform=tbl_ax.transAxes, zorder=0))
 
-        bias     = row_data['diff']
+        bias      = row_data['diff']
+        bias_nbhd = row_data['diff_nbhd']
 
         row_vals = [
             row_data['station'],
@@ -267,9 +311,13 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
             f"{row_data['obs']:.1f}",
             f"{row_data['wrf']:.1f}",
             f"{bias:+.1f}",
+            f"{row_data['wrf_nbhd']:.1f}",
+            f"{bias_nbhd:+.1f}",
         ]
-        row_colors  = ['black', '#555555', 'black', 'black', 'black']
-        row_weights = ['bold', 'normal', 'bold', 'normal', 'bold']
+        row_colors  = ['black', '#555555', 'black', 'black', 'black',
+                       'black', 'black']
+        row_weights = ['bold', 'normal', 'bold', 'normal', 'bold',
+                       'normal', 'bold']
 
         x_pos = 0.0
         for val, w, color, weight in zip(row_vals, col_widths,
@@ -281,7 +329,8 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
             x_pos += w
 
     tbl_ax.text(0.5, 1.10,
-                'ASOS Station Comparison \u2014 Observed Peak Gust vs WRF at Station Grid Point',
+                'ASOS Station Comparison \u2014 Observed Peak Gust vs WRF at Station Grid Point '
+                'and within 10 km Neighborhood',
                 ha='center', va='top', fontsize=9, fontweight='bold',
                 transform=tbl_ax.transAxes)
 
@@ -289,10 +338,12 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     plt.close()
 
 
-    print(f"{'Station':8s} | {'Obs':8s} | {'WRF':8s} | {'Bias':8s}")
+    print(f"{'Station':8s} | {'Obs':8s} | {'WRF':8s} | {'Bias':8s} | "
+          f"{'WRF 10km':10s} | {'Bias 10km':10s}")
     for r in sorted(table_rows, key=lambda x: x['obs'], reverse=True):
         print(f"{r['station']:8s} | {r['obs']:6.1f} m/s | "
-              f"{r['wrf']:6.1f} m/s | {r['diff']:+.1f} m/s")
+              f"{r['wrf']:6.1f} m/s | {r['diff']:+6.1f} m/s | "
+              f"{r['wrf_nbhd']:6.1f} m/s | {r['diff_nbhd']:+6.1f} m/s")
 
 
 def main():
