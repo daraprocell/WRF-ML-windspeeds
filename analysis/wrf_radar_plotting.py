@@ -29,6 +29,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.animation as animation
 from matplotlib.patches import Patch
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import requests
 from io import BytesIO
 from PIL import Image
@@ -37,8 +39,6 @@ from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
-
-# Radar colormap — matches NWS standard reflectivity colors
 
 def make_nws_refl_cmap():
     """
@@ -82,8 +82,6 @@ HOUSTON_STATIONS = {
     'KBPT':  (30.0686, -94.0207),
 }
 
-# WRF loading
-
 def load_wrf_times(wrfout_files):
     """Return list of (filepath, time_index, datetime) tuples."""
     entries = []
@@ -99,7 +97,7 @@ def load_wrf_times(wrfout_files):
 
 def extract_wrf_refl(fpath, tidx):
     """
-    Extract column-maximum simulated reflectivity from a WRF output file.
+    Extract column max simulated reflectivity from a WRF output file.
     Uses REFL_10CM (3D) and takes the column maximum (composite reflectivity).
     """
     with Dataset(fpath, 'r') as nc:
@@ -116,14 +114,12 @@ def extract_wrf_refl(fpath, tidx):
     return refl_comp, wrf_lat, wrf_lon
 
 
-# IEM observed radar download
-
 def download_iem_radar(dt):
     """
     Download IEM NEXRAD composite reflectivity PNG for a given UTC datetime.
     Returns PIL Image or None if unavailable.
 
-    IEM files are named n0q_YYYYMMDDHHММ.png at 5 minute intervals.
+    IEM files are named n0q_YYYYMMDDHH\u041c\u041c.png at 5 minute intervals.
     We find the nearest 5 minute timestamp.
     """
     # Round to nearest 5 min
@@ -149,8 +145,8 @@ def iem_image_to_refl(img, wrf_lat, wrf_lon):
     Convert IEM n0q PNG composite to dBZ values on the WRF grid.
 
     IEM n0q encoding: dBZ = (pixel_value * 0.5) - 32.5
-    pixel_value = 0 → no echo (NaN)
-    pixel_value = 1-255 → -32.0 to 95.0 dBZ in 0.5 dBZ steps
+    pixel_value = 0 \u2192 no echo (NaN)
+    pixel_value = 1-255 \u2192 -32.0 to 95.0 dBZ in 0.5 dBZ steps
 
     Returns dBZ array interpolated to WRF lat/lon grid.
     """
@@ -183,22 +179,6 @@ def iem_image_to_refl(img, wrf_lat, wrf_lon):
 
     return dbz[py, px]
 
-# Plotting helpers
-
-def add_state_borders(ax, lons, lats):
-    """Add simple state border approximations using cartopy if available."""
-    try:
-        import cartopy.crs as ccrs
-        import cartopy.feature as cfeature
-        # If cartopy is available, add features
-        ax.add_feature(cfeature.STATES.with_scale('50m'),
-                       linewidth=0.6, edgecolor='black', facecolor='none')
-        ax.add_feature(cfeature.COASTLINE.with_scale('50m'),
-                       linewidth=0.6, edgecolor='black')
-    except Exception:
-        # Cartopy not available — just add grid
-        ax.grid(True, color='gray', lw=0.3, alpha=0.5)
-
 
 def plot_refl_panel(ax, refl, lat, lon, title, stations=None,
                     cp_arrivals=None, vmin=0, vmax=75):
@@ -211,26 +191,37 @@ def plot_refl_panel(ax, refl, lat, lon, title, stations=None,
     cf = ax.pcolormesh(lon, lat, refl_masked,
                        cmap=NWS_CMAP,
                        norm=REFL_NORM,
-                       shading='auto')
+                       shading='auto',
+                       transform=ccrs.PlateCarree())
 
-    ax.set_xlim(lon.min(), lon.max())
-    ax.set_ylim(lat.min(), lat.max())
+    # Cartopy map features
+    ax.add_feature(cfeature.COASTLINE.with_scale('10m'),
+                   linewidth=1.2, edgecolor='black', zorder=5)
+    ax.add_feature(cfeature.STATES.with_scale('10m'),
+                   linewidth=0.7, edgecolor='#444444',
+                   facecolor='none', zorder=5)
+    ax.add_feature(cfeature.BORDERS.with_scale('10m'),
+                   linewidth=0.8, edgecolor='#444444', zorder=5)
+
+    ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()],
+                  crs=ccrs.PlateCarree())
     ax.set_title(title, fontsize=11, fontweight='bold', pad=6)
-    ax.set_xlabel('Longitude', fontsize=9)
-    ax.set_ylabel('Latitude', fontsize=9)
-    ax.grid(True, color='gray', lw=0.3, alpha=0.4)
+    ax.gridlines(draw_labels=True, linewidth=0.4,
+                 color='gray', alpha=0.5, linestyle='--')
 
     # Station markers
     if stations:
         for stn, (slat, slon) in stations.items():
             if (lon.min() <= slon <= lon.max() and
                     lat.min() <= slat <= lat.max()):
-                ax.plot(slon, slat, 'k^', ms=5, zorder=6)
+                ax.plot(slon, slat, 'k^', ms=5, zorder=6,
+                        transform=ccrs.PlateCarree())
                 ax.annotate(stn, (slon, slat), xytext=(3, 3),
                             textcoords='offset points',
                             fontsize=7, fontweight='bold',
                             bbox=dict(boxstyle='round,pad=0.2',
-                                      fc='white', alpha=0.7))
+                                      fc='white', alpha=0.7),
+                            xycoords=ccrs.PlateCarree()._as_mpl_transform(ax))
 
     return cf
 
@@ -243,7 +234,7 @@ def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
     Side by side WRF simulated vs observed reflectivity at peak event time.
     """
     fig, axes = plt.subplots(1, 2, figsize=(18, 8),
-                             subplot_kw=dict())
+                             subplot_kw={'projection': ccrs.PlateCarree()})
 
     # WRF panel
     cf1 = plot_refl_panel(
@@ -267,13 +258,12 @@ def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
     plt.colorbar(cf1, ax=axes, label='Composite Reflectivity (dBZ)',
                  orientation='horizontal', pad=0.05, shrink=0.6)
 
-    fig.suptitle('WRF vs Observed Radar — Houston Derecho 16 May 2024',
+    fig.suptitle('WRF vs Observed Radar \u2014 Houston Derecho 16 May 2024',
                  fontsize=14, fontweight='bold', y=1.02)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=200, bbox_inches='tight')
     plt.close()
-    print(f"Saved: {output_path}")
 
 
 # Figure 2: GIFs
@@ -302,7 +292,8 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
     frames_data = []
 
     for idx, (dt, wrf_refl) in enumerate(wrf_times_data):
-        fig, axes = plt.subplots(1, ncols, figsize=figsize)
+        fig, axes = plt.subplots(1, ncols, figsize=figsize,
+                                 subplot_kw={'projection': ccrs.PlateCarree()})
         if ncols == 1:
             axes = [axes]
 
@@ -310,21 +301,33 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
         refl_masked = np.where(np.isnan(wrf_refl), np.nan, wrf_refl)
         cf = axes[0].pcolormesh(wrf_lon, wrf_lat, refl_masked,
                                 cmap=NWS_CMAP, norm=REFL_NORM,
-                                shading='auto')
-        axes[0].set_xlim(wrf_lon.min(), wrf_lon.max())
-        axes[0].set_ylim(wrf_lat.min(), wrf_lat.max())
+                                shading='auto',
+                                transform=ccrs.PlateCarree())
+        axes[0].add_feature(cfeature.COASTLINE.with_scale('10m'),
+                            linewidth=1.0, edgecolor='black', zorder=5)
+        axes[0].add_feature(cfeature.STATES.with_scale('10m'),
+                            linewidth=0.6, edgecolor='#444444',
+                            facecolor='none', zorder=5)
+        axes[0].add_feature(cfeature.BORDERS.with_scale('10m'),
+                            linewidth=0.7, edgecolor='#444444', zorder=5)
+        axes[0].set_extent([wrf_lon.min(), wrf_lon.max(),
+                            wrf_lat.min(), wrf_lat.max()],
+                           crs=ccrs.PlateCarree())
         axes[0].set_title(f'WRF Simulated Reflectivity\n{dt.strftime("%Y-%m-%d %H:%MZ")}',
                           fontsize=11, fontweight='bold')
-        axes[0].grid(True, color='gray', lw=0.3, alpha=0.4)
+        axes[0].gridlines(draw_labels=True, linewidth=0.3,
+                          color='gray', alpha=0.5, linestyle='--')
 
         for stn, (slat, slon) in HOUSTON_STATIONS.items():
             if wrf_lon.min() <= slon <= wrf_lon.max():
-                axes[0].plot(slon, slat, 'k^', ms=5, zorder=6)
+                axes[0].plot(slon, slat, 'k^', ms=5, zorder=6,
+                             transform=ccrs.PlateCarree())
                 axes[0].annotate(stn, (slon, slat), xytext=(2, 2),
                                  textcoords='offset points', fontsize=7,
                                  fontweight='bold',
                                  bbox=dict(boxstyle='round,pad=0.15',
-                                           fc='white', alpha=0.6))
+                                           fc='white', alpha=0.6),
+                                 xycoords=ccrs.PlateCarree()._as_mpl_transform(axes[0]))
 
         # Observed panel (comparison mode)
         if mode == 'comparison' and obs_frames is not None:
@@ -333,16 +336,26 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
                 obs_masked = np.where(np.isnan(obs), np.nan, obs)
                 axes[1].pcolormesh(wrf_lon, wrf_lat, obs_masked,
                                    cmap=NWS_CMAP, norm=REFL_NORM,
-                                   shading='auto')
-                axes[1].set_xlim(wrf_lon.min(), wrf_lon.max())
-                axes[1].set_ylim(wrf_lat.min(), wrf_lat.max())
+                                   shading='auto',
+                                   transform=ccrs.PlateCarree())
+                axes[1].add_feature(cfeature.COASTLINE.with_scale('10m'),
+                                    linewidth=1.0, edgecolor='black', zorder=5)
+                axes[1].add_feature(cfeature.STATES.with_scale('10m'),
+                                    linewidth=0.6, edgecolor='#444444',
+                                    facecolor='none', zorder=5)
+                axes[1].add_feature(cfeature.BORDERS.with_scale('10m'),
+                                    linewidth=0.7, edgecolor='#444444', zorder=5)
+                axes[1].set_extent([wrf_lon.min(), wrf_lon.max(),
+                                    wrf_lat.min(), wrf_lat.max()],
+                                   crs=ccrs.PlateCarree())
             else:
                 axes[1].text(0.5, 0.5, 'No obs data',
                              ha='center', va='center',
                              transform=axes[1].transAxes)
             axes[1].set_title(f'NEXRAD Observed\n{dt.strftime("%Y-%m-%d %H:%MZ")}',
                               fontsize=11, fontweight='bold')
-            axes[1].grid(True, color='gray', lw=0.3, alpha=0.4)
+            axes[1].gridlines(draw_labels=True, linewidth=0.3,
+                              color='gray', alpha=0.5, linestyle='--')
 
         plt.colorbar(cf, ax=axes, label='Reflectivity (dBZ)',
                      orientation='horizontal', pad=0.05, shrink=0.5)
@@ -360,7 +373,6 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
         duration=int(1000 / fps),
         loop=0
     )
-    print(f"Saved: {output_path}")
 
 
 def main():
@@ -385,17 +397,13 @@ def main():
     event_end          = pd.to_datetime(args.event_window_end)
 
     # Load WRF time inventory
-    print("Scanning WRF output files...")
     all_times = load_wrf_times(args.wrfout)
     event_times = [(f, t, dt) for f, t, dt in all_times
                    if event_start <= dt <= event_end]
-    print(f"Found {len(event_times)} WRF time steps in event window")
-
     if not event_times:
         raise ValueError("No WRF time steps found in event window")
 
     # Extract all WRF reflectivity frames
-    print("Extracting WRF reflectivity...")
     wrf_frames = []
     wrf_lat = None
     wrf_lon = None
@@ -406,13 +414,10 @@ def main():
             wrf_lat = lat
             wrf_lon = lon
         wrf_frames.append((dt, refl))
-        if len(wrf_frames) % 5 == 0:
-            print(f"  Loaded {len(wrf_frames)}/{len(event_times)} frames")
 
     # Download observed radar frames
     obs_frames = []
     if not args.skip_obs:
-        print("\nDownloading IEM NEXRAD composites...")
         for dt, _ in wrf_frames:
             img, url = download_iem_radar(dt)
             if img is not None:
@@ -422,11 +427,9 @@ def main():
             else:
                 obs_frames.append(None)
     else:
-        print("Skipping observed radar download (--skip-obs)")
         obs_frames = [None] * len(wrf_frames)
 
-    # --- Figure 1: Peak time side-by-side ---
-    print("\nGenerating peak time comparison figure...")
+    # Figure 1: Peak time side by side
     peak_idx = np.argmin([abs((dt - peak_time).total_seconds())
                           for dt, _ in wrf_frames])
     peak_dt, peak_wrf_refl = wrf_frames[peak_idx]
@@ -437,8 +440,7 @@ def main():
         output_dir / f'refl_comparison_{peak_dt.strftime("%Y%m%d_%H%MZ")}.png'
     )
 
-    # --- Figure 2: WRF animation ---
-    print("\nGenerating WRF reflectivity GIF...")
+    # Figure 2: WRF gif
     make_refl_gif(
         wrf_frames,
         output_dir / 'wrf_refl_animation.gif',
@@ -448,9 +450,8 @@ def main():
         wrf_lon=wrf_lon
     )
 
-    # --- Figure 3: Side-by-side comparison GIF ---
+    # Figure 3: Side by side comparison GIF 
     if any(o is not None for o in obs_frames):
-        print("\nGenerating WRF vs observed comparison GIF...")
         make_refl_gif(
             wrf_frames,
             output_dir / 'refl_comparison_animation.gif',
@@ -460,14 +461,6 @@ def main():
             wrf_lon=wrf_lon,
             obs_frames=obs_frames
         )
-
-    print(f"\nAll figures saved to {output_dir}/")
-    print("\nQuick MCS checklist — look for these in your WRF reflectivity:")
-    print("  [ ] Organized convective line with >50 dBZ cores")
-    print("  [ ] Stratiform precipitation region trailing the convective line")
-    print("  [ ] Bow echo structure (forward-bulging line segment)")
-    print("  [ ] Storm motion roughly west-to-east across Houston metro")
-    print("  [ ] Timing: convective line over Houston area around 22-00Z")
 
 
 if __name__ == '__main__':

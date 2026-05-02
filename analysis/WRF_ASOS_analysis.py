@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-analyze_wrf_winds.py
+WRF_ASOS_analysis.py
 --------------------
 Extract WRF 10m winds at ASOS locations using distance-weighted averaging,
 compare to observations, and train ML models for bias correction.
 
 Example use:
-    python analyze_wrf_winds.py --event houston --wrfout wrfout_d02_* --asos data/asos/houston_asos_summary.csv
+    python WRF_ASOS_analysis.py --event houston --wrfout wrfout_d02_* --asos data/asos/houston_asos_summary.csv
 """
 
 import argparse
