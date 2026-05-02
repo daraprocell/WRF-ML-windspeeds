@@ -95,7 +95,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     Single-panel wind swath comparison figure.
     """
 
-    THRESH = 7.0   # only show winds above this threshold
+    THRESH = 9.0   # only show winds above this threshold
     vmin, vmax = THRESH, 30
     cmap = plt.cm.plasma_r
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
