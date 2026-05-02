@@ -12,7 +12,7 @@ The figure shows:
 
 Example use:
     python windswath.py \
-        --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
+        --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
         --asos data/asos/houston_asos_summary.csv \
         --output figures/wind_swath_comparison.png \
         --event-start "2024-05-16 18:00" \
@@ -95,7 +95,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     Single-panel wind swath comparison figure.
     """
 
-    THRESH = 12.0   # only show winds above this threshold
+    THRESH = 7.0   # only show winds above this threshold
     vmin, vmax = THRESH, 30
     cmap = plt.cm.plasma_r
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
