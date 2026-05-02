@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-wrf_crosssection.py
+crosssection.py
 -------------------
 N-S vertical cross section through the WRF derecho cold pool.
 
 Variables used:
-  T    : WRF perturbation potential temperature (K) — add 300K for full theta
+  T    : WRF perturbation potential temperature (K)
   P    : WRF perturbation pressure (Pa)
   PB   : WRF base pressure (Pa)
   PH   : WRF perturbation geopotential (m^2/s^2)
@@ -19,12 +19,12 @@ Temperature calculation:
   T_anom = T_K - T_K_baseline             (anomaly relative to pre-storm mean)
 
 Example use:
-    python wrf_crosssection.py \
+    python crosssection.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
         --peak-time "2024-05-16 23:00" \
         --cross-lon -95.4 \
         --baseline-end "2024-05-16 12:00" \
-        --output figures/coldpool/coldpool_crosssection_fixed.png
+        --output figures/coldpool/CP_crosssection.png
 """
 
 import argparse
