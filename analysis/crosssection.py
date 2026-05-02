@@ -214,7 +214,7 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
             axes[0].plot(lats[j], HGT[top_idx, j],
                          'k.', ms=2.5, alpha=0.7)
 
-    # Also contour the -2K line explicitly
+    # Contour the -2K line 
     axes[0].contour(LAT_GRID, HGT, T_anom,
                     levels=[-2], colors='navy',
                     linewidths=1.5, linestyles='--')
