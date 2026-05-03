@@ -417,7 +417,6 @@ def main():
             if img is not None:
                 obs_refl = iem_image_to_refl(img, wrf_lat, wrf_lon)
                 obs_frames.append(obs_refl)
-                print(f"  Downloaded: {dt.strftime('%H:%MZ')}")
             else:
                 obs_frames.append(None)
     else:
