@@ -14,7 +14,7 @@ Example use:
     python windswath.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
         --asos data/asos/houston_asos_summary.csv \
-        --output figures/wind_swath_comparison_d02_n.png \
+        --output figures/windswath/wind_swath_comparison_d02_n.png \
         --event-start "2024-05-16 18:00" \
         --event-end "2024-05-17 02:00"
 """

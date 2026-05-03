@@ -17,7 +17,7 @@ Example use:
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
         --time "2024-05-16 23:00" \
         --baseline-end "2024-05-16 12:00" \
-        --output figures/coldpool_3d.html
+        --output figures/3D
 """
 
 import argparse
