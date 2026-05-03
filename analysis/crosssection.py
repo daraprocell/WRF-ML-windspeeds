@@ -143,7 +143,7 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     fig, axes = plt.subplots(3, 1, figsize=(14, 13), sharex=True)
     plt.rcParams.update({'font.size': 11})
 
-    # ----- Panel A: Temperature anomaly --------------------------------------
+    # Temperature anomaly 
     vmax_t = min(np.nanpercentile(np.abs(T_anom[height_mask]), 98), 12)
 
     cf1 = axes[0].contourf(LAT_GRID, HGT, T_anom,
@@ -186,7 +186,7 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
                      bbox=dict(boxstyle='round,pad=0.25',
                                fc='yellow', ec='black', alpha=0.9, lw=0.8))
 
-    # ----- Panel B: Horizontal wind speed |U| --------------------------------
+    # Horizontal wind speed |U|
     wspd_levels = np.arange(0, 30, 2)
     cf2 = axes[1].contourf(LAT_GRID, HGT, WSPD,
                            levels=wspd_levels,
@@ -215,7 +215,7 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
                     label='~70m AGL (lowest model level)')
     axes[1].legend(fontsize=8, loc='upper right')
 
-    # ----- Panel C: Vertical velocity W --------------------------------------
+    # Vertical velocity W 
     vmax_w = min(max(abs(np.nanpercentile(W[height_mask], 1)),
                      abs(np.nanpercentile(W[height_mask], 99))), 5)
 
@@ -249,21 +249,16 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     plt.savefig(output_path, dpi=200, bbox_inches='tight')
     plt.close()
 
-    # ---- Diagnostics --------------------------------------------------------
-    print("Diagnostics at peak time:", peak_dt)
-    print(f"Cold pool max T anomaly: {T_anom[HGT < 2000].min():.1f} K")
     cold_mask = (T_anom < -2) & (HGT < max_height)
     if cold_mask.any():
         cp_depth = HGT[cold_mask].max()
         print(f"  Cold pool max depth: {cp_depth:.0f} m AGL")
     else:
         print("  Cold pool (< -2K) not found in cross section")
-    print(f"  Max |U| in cross section: {WSPD[HGT < max_height].max():.1f} m/s")
-    print(f"  Max |U| below 200m AGL:  {WSPD[HGT < 200].max():.1f} m/s")
-    print(f"  Max |W| in cross section: {np.abs(W[HGT < max_height]).max():.1f} m/s")
+    print(f"Max |U| in cross section: {WSPD[HGT < max_height].max():.1f} m/s")
+    print(f"Max |U| below 200m AGL:  {WSPD[HGT < 200].max():.1f} m/s")
+    print(f"Max |W| in cross section: {np.abs(W[HGT < max_height]).max():.1f} m/s")
 
-    print()
-    print(f"--- Column directly over Houston (lat = {lats[hou_j]:.2f}\u00b0N) ---")
     col_U = WSPD[:, hou_j]
     col_H = HGT[:, hou_j]
     col_T = T_anom[:, hou_j]

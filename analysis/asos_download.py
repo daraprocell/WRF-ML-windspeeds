@@ -4,20 +4,19 @@ asos_download.py
 ----------------
 Download ASOS data for WRF wind and cold pool comparison.
 
-Saves two files (both useful, different downstream consumers):
-  1. {event}_asos_timeseries.csv  — full 5-min time series, one row per observation
-                                     (used by coldpool_analysis.py, time series plots)
+Saves two files:
+  1. {event}_asos_timeseries.csv  — full 5 min time series, one row per observation        
   2. {event}_asos_summary.csv     — peak statistics per station, one row per station
-                                     (used by wind_swath_comparison.py, ML pipeline)
+                                    
 
-Variables downloaded (all needed for cold pool + wind analysis):
-  - tmpf    : temperature (°F)           → cold pool temperature drop
-  - dwpf    : dewpoint (°F)              → moisture signature
-  - sknt    : sustained wind (knots)     → wind speed
-  - gust    : wind gust (knots)          → peak gust (used for swath comparison)
-  - drct    : wind direction (degrees)   → direction shift at outflow boundary
-  - mslp    : sea level pressure (mb)    → pressure surge
-  - wxcodes : weather codes              → precipitation/convection indicator
+Variables downloaded:
+  - tmpf    : temperature (°F)           cold pool temperature drop
+  - dwpf    : dewpoint (°F)              moisture signature
+  - sknt    : sustained wind (knots)     wind speed
+  - gust    : wind gust (knots)          peak gust (used for swath comparison)
+  - drct    : wind direction (degrees)   direction shift at outflow boundary
+  - mslp    : sea level pressure (mb)    pressure surge
+  - wxcodes : weather codes              precipitation/convection indicator
 
 Example use:
     python asos_download.py --event houston --start "2024-05-16 00:00" --end "2024-05-17 06:00"
@@ -37,21 +36,12 @@ KT_TO_MS = 0.514444   # knots → m/s
 F_TO_C   = lambda f: (f - 32) * 5 / 9   # °F → °C
 
 # Houston event stations:
-#   - 13 original Houston-area stations (used for initial bias analysis)
-#   - 6 extended stations near WRF-simulated max wind location (~31.1°N, -94.1°W)
-#     KJAS is the closest ASOS to the WRF max 
+#   - 19 Houston-area stations
 STATION_LISTS = {
     'houston': [
-        # Original 13 Houston-area stations
         'KHOU', 'KIAH', 'KGLS', 'KDWH', 'KSGR', 'KTME',
         'KCLL', 'KBPT', 'KLCH', 'KLFT', 'KMSY', 'KNEW', 'KBTR',
-        # Extended stations near WRF-simulated max wind location
-        'KJAS',   # Jasper, TX -- closest to WRF max at 31.1°N, -94.1°W
-        'KLFK',   # Lufkin, TX -- in WRF storm path
-        'KCXO',   # Conroe, TX -- between Houston and WRF max
-        'KAEX',   # Alexandria, LA -- east of WRF max
-        'K6R3',   # Cleveland, TX -- north of Houston
-        'KPSX',   # Palacios, TX -- southwest of Houston
+        'KJAS', 'KLFK', 'KCXO', 'KAEX', 'K6R3', 'KPSX',  
     ],
     'iowa': [
         'KDSM', 'KCID', 'KDVN', 'KMCW', 'KOTM',
@@ -67,7 +57,6 @@ STATION_LISTS = {
 }
 
 STATION_METADATA = {
-    # Houston original 13
     'KHOU': {'name': 'Houston Hobby',          'lat': 29.6375, 'lon': -95.2824, 'elev': 14},
     'KIAH': {'name': 'Bush Intercontinental',  'lat': 29.9844, 'lon': -95.3607, 'elev': 29},
     'KGLS': {'name': 'Galveston',              'lat': 29.2654, 'lon': -94.8604, 'elev': 2},
@@ -81,8 +70,6 @@ STATION_METADATA = {
     'KMSY': {'name': 'New Orleans Intl',       'lat': 29.9934, 'lon': -90.2580, 'elev': 1},
     'KNEW': {'name': 'New Orleans Lakefront',  'lat': 30.0420, 'lon': -90.0283, 'elev': 3},
     'KBTR': {'name': 'Baton Rouge',            'lat': 30.5333, 'lon': -91.1496, 'elev': 21},
-
-    # Houston extended stations
     'KJAS': {'name': 'Jasper Bell Field',      'lat': 30.8857, 'lon': -94.0349, 'elev': 65},
     'KLFK': {'name': 'Lufkin Angelina Co.',    'lat': 31.2340, 'lon': -94.7500, 'elev': 88},
     'KCXO': {'name': 'Conroe Lone Star Exec.', 'lat': 30.3520, 'lon': -95.4150, 'elev': 75},
@@ -284,7 +271,6 @@ def main():
         print("ERROR: No data downloaded successfully")
         return 1
 
-    # Save full time series
     ts_df = pd.concat(all_timeseries, ignore_index=True)
     ts_df = ts_df.sort_values(['station', 'valid']).reset_index(drop=True)
     ts_file = output_dir / f'{args.event}_asos_timeseries.csv'
