@@ -24,7 +24,7 @@ Example use:
         --peak-time "2024-05-17 00:00" \
         --cross-lon -95.35 \
         --baseline-end "2024-05-16 12:00" \
-        --output figures/coldpool/CP_crosssection_houston.png
+        --output figures/crosssection/crosssection_houston.png
 """
 
 import argparse
@@ -241,12 +241,11 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
                     zorder=10)
     axes[0].annotate('Houston\nmetro',
                      xy=(houston_lat, max_height * 0.92),
-                     xytext=(houston_lat + 0.3, max_height * 0.92),
+                     xytext=(3, 0), textcoords='offset points',
                      fontsize=9, fontweight='bold',
-                     ha='left', va='center',
-                     bbox=dict(boxstyle='round,pad=0.3',
-                               fc='yellow', ec='black', alpha=0.9, lw=0.8),
-                     arrowprops=dict(arrowstyle='->', color='black', lw=1.0))
+                     ha='left', va='center', zorder=11,
+                     bbox=dict(boxstyle='round,pad=0.25',
+                               fc='yellow', ec='black', alpha=0.9, lw=0.8))
 
     # Panel B: Horizontal wind speed (U)
     # Shows the rear inflow jet aloft vs weak surface winds
@@ -295,14 +294,17 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     surf_U  = col_U[surf_mask].mean() if surf_mask.any() else float('nan')
     aloft_U = col_U[aloft_mask].mean() if aloft_mask.any() else float('nan')
 
-    # Annotation text inside the box
+    # Annotation text: place INSIDE the dashed box, near the top so it doesn't
+    # overlap the 10 m/s contour line. Box is from box_left to box_right and
+    # height 0 to box_top_height; place at upper-left interior of box.
     axes[1].annotate(
         f"Inverted profile over Houston:\n"
         f"  ~{aloft_U:.0f} m/s aloft (1.5\u20133.5 km AGL)\n"
         f"  ~{surf_U:.0f} m/s at surface\n"
         f"  \u2192 PBL/sfc layer fails to transport momentum",
-        xy=(box_right + 0.05, 1500),
-        fontsize=8.5, fontweight='bold', ha='left', va='center',
+        xy=(box_left + 0.05, box_top_height - 200),
+        ha='left', va='top',
+        fontsize=8.5, fontweight='bold',
         zorder=12,
         bbox=dict(boxstyle='round,pad=0.4', fc='white',
                   ec='black', lw=1.0, alpha=0.95))
