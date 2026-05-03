@@ -6,9 +6,8 @@ Compare WRF maximum wind swath against ASOS observed peak gusts.
 
 The figure shows:
   - Background: WRF maximum 10m wind speed at each grid point over the
-    full simulation (the "wind swath"), which shows WHERE WRF put its strongest winds
-  - ASOS dots: observed peak gust at each station
-    with magnitude 
+    full simulation (the "wind swath"), which shows where WRF put its strongest winds
+  - ASOS dots: observed peak gust at each station 
 
 Example use:
     python windswath.py \
@@ -83,9 +82,6 @@ def compute_wrf_wind_swath(wrfout_files, event_start, event_end):
 
                 n_loaded += 1
 
-    print(f"Domain max wind: {max_wspd.max():.1f} m/s")
-    print(f"Domain mean max: {max_wspd.mean():.1f} m/s")
-
     return wrf_lat, wrf_lon, max_wspd, time_of_max
 
 def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
@@ -148,6 +144,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         # km/(km per degree) for both axes
         dlat_max = NEIGHBORHOOD_RADIUS_KM / KM_PER_DEG_LAT
         dlon_max = NEIGHBORHOOD_RADIUS_KM / KM_PER_DEG_LON_AT_30N
+
         # Build mask of grid points within the radius (haversine-lite using
         # local flat earth approximation)
         dist_km = np.sqrt(
@@ -202,8 +199,8 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     peak_time_hr  = time_of_max[peak_idx]
     peak_time_str = f"{int(peak_time_hr):02d}:{int((peak_time_hr % 1)*60):02d}Z"
 
-    ax.scatter(peak_lon, peak_lat, c='white', s=120, zorder=10,
-               edgecolors='black', linewidths=1.5, marker='*',
+    ax.scatter(peak_lon, peak_lat, c='black', s=30, zorder=10,
+               edgecolors='white', linewidths=0.8, marker='o',
                transform=ccrs.PlateCarree())
     ax.annotate(f"WRF max {peak_val:.1f} m/s",
                 xy=(peak_lon, peak_lat),
@@ -226,9 +223,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                markerfacecolor='black', markeredgecolor='white',
                markersize=13, markeredgewidth=1.5,
                label='Downtown Houston'),
-        Line2D([0], [0], marker='*', color='w',
-               markerfacecolor='white', markeredgecolor='black',
-               markersize=13, markeredgewidth=2,
+        Line2D([0], [0], marker='o', color='w',
+               markerfacecolor='black', markeredgecolor='white',
+               markersize=6, markeredgewidth=1,
                label='WRF domain-wide wind maximum'),
     ]
     ax.legend(handles=legend_elements, loc='lower left',
@@ -238,8 +235,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     ax.set_extent([wrf_lon.min(), wrf_lon.max(),
                    wrf_lat.min(), wrf_lat.max()],
                   crs=ccrs.PlateCarree())
-    ax.gridlines(draw_labels=True, linewidth=0.4,
-                 color='gray', alpha=0.5, linestyle='--')
+    gl = ax.gridlines(draw_labels=True, linewidth=0.4,
+                      color='gray', alpha=0.5, linestyle='--')
+    gl.right_labels = False
 
     ax.set_title(
         'WRF Simulated Maximum Wind Swath vs ASOS Observed Peak Gusts\n'
