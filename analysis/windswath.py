@@ -130,8 +130,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
 
     table_rows = []
 
-    # Approximate degrees per km at this latitude (~30°N)
-    # 1° lat ~ 111 km, 1° lon ~ 96 km at 30°N
+    # Approximate degrees per km at this latitude
     KM_PER_DEG_LAT = 111.0
     KM_PER_DEG_LON_AT_30N = 96.0
     NEIGHBORHOOD_RADIUS_KM = 10.0
@@ -150,7 +149,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
         dlat_max = NEIGHBORHOOD_RADIUS_KM / KM_PER_DEG_LAT
         dlon_max = NEIGHBORHOOD_RADIUS_KM / KM_PER_DEG_LON_AT_30N
         # Build mask of grid points within the radius (haversine-lite using
-        # local-flat-earth approximation
+        # local flat earth approximation)
         dist_km = np.sqrt(
             ((wrf_lat - slat) * KM_PER_DEG_LAT) ** 2 +
             ((wrf_lon - slon) * KM_PER_DEG_LON_AT_30N) ** 2
@@ -216,9 +215,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                 xycoords=ccrs.PlateCarree()._as_mpl_transform(ax))
 
     cbar = plt.colorbar(pm, ax=ax, pad=0.02, shrink=0.85, extend='min')
-    cbar.set_label(f'Peak 10-m Wind Speed (m/s, \u2265{THRESH:.0f} m/s shown)\n'
-                   'WRF swath = background  |  ASOS = filled circles',
-                   fontsize=10)
+    cbar.set_label('Peak 10-m Wind Speed (m/s)', fontsize=10)
 
     legend_elements = [
         Line2D([0], [0], marker='o', color='w',
@@ -274,9 +271,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     x_pos = 0.0
     for label, w in zip(col_labels, col_widths):
         tbl_ax.text(x_pos + w/2, header_y, label,
-                    ha='center', va='center', fontsize=8.5,
+                    ha='center', va='center', fontsize=7.5,
                     fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.3',
+                    bbox=dict(boxstyle='round,pad=0.25',
                               fc='#2C3E50', ec='none'),
                     color='white', transform=tbl_ax.transAxes)
         x_pos += w
@@ -315,7 +312,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                                           row_colors, row_weights):
             tbl_ax.text(x_pos + w/2, y, val,
                         ha='center', va='center',
-                        fontsize=8, color=color, fontweight=weight,
+                        fontsize=7, color=color, fontweight=weight,
                         transform=tbl_ax.transAxes)
             x_pos += w
 
@@ -327,14 +324,6 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
 
     plt.savefig(output_path, dpi=200, bbox_inches='tight')
     plt.close()
-
-
-    print(f"{'Station':8s} | {'Obs':8s} | {'WRF':8s} | {'Bias':8s} | "
-          f"{'WRF 10km':10s} | {'Bias 10km':10s}")
-    for r in sorted(table_rows, key=lambda x: x['obs'], reverse=True):
-        print(f"{r['station']:8s} | {r['obs']:6.1f} m/s | "
-              f"{r['wrf']:6.1f} m/s | {r['diff']:+6.1f} m/s | "
-              f"{r['wrf_nbhd']:6.1f} m/s | {r['diff_nbhd']:+6.1f} m/s")
 
 
 def main():
