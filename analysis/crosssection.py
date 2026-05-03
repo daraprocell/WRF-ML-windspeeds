@@ -20,11 +20,11 @@ Temperature calculation:
 
 Example use:
     python crosssection.py \
-        --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
-        --peak-time "2024-05-16 23:00" \
-        --cross-lon -95.4 \
+        --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
+        --peak-time "2024-05-17 00:00" \
+        --cross-lon -95.35 \
         --baseline-end "2024-05-16 12:00" \
-        --output figures/coldpool/CP_crosssection.png
+        --output figures/coldpool/CP_crosssection_houston.png
 """
 
 import argparse
@@ -90,7 +90,7 @@ def compute_actual_temperature(T_pert, P_pert, PB):
     return T_actual
 
 
-def extract_cross_section(wrfout_files, col_idx, all_times, baseline_end):
+def extract_cross_section(all_times, col_idx, baseline_end):
     """
     Extract vertical cross section data at a fixed column for all time steps.
 
@@ -166,11 +166,12 @@ def extract_cross_section(wrfout_files, col_idx, all_times, baseline_end):
 
 
 def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
-                       max_height=5000):
+                       max_height=5000, houston_lat=29.75):
     """
-    Three-panel cross section:
+    Three-panel cross section with Houston metro highlighted:
       (a) Temperature anomaly — cold pool depth and intensity
-      (b) Horizontal wind speed U — shows rear-inflow jet and surface wind deficit
+      (b) Horizontal wind speed U — shows rear-inflow jet and surface wind deficit,
+          with the inverted-profile zone over Houston explicitly annotated
       (c) Vertical velocity W — updraft/downdraft structure
     """
     # Find peak time index
@@ -182,6 +183,9 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     U      = data['U'][peak_idx, :, :]         # (nz, ny)
     W      = data['W'][peak_idx, :, :]         # (nz, ny)
     HGT    = data['HGT'][peak_idx, :, :]       # (nz, ny) AGL
+
+    # Find lat-index nearest to Houston for diagnostics
+    hou_j = int(np.argmin(np.abs(lats - houston_lat)))
 
     # Mask above max_height
     height_mask = HGT <= max_height
@@ -223,14 +227,26 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     axes[0].set_ylabel('Height AGL (m)', fontsize=11)
     axes[0].set_title(
         f'(a) Temperature Anomaly relative to pre-storm baseline\n'
-        f'N-S Cross Section at {abs(cross_lon):.1f}°W — '
+        f'N-S Cross Section at {abs(cross_lon):.2f}\u00b0W (Houston longitude) \u2014 '
         f'{peak_dt.strftime("%Y-%m-%d %H:%MZ")}',
         fontsize=11, fontweight='bold')
     axes[0].grid(True, color='#DDDDDD', lw=0.5)
-    axes[0].annotate('Cold pool top (−2K contour = dashed navy)',
+    axes[0].annotate('Cold pool top (\u22122K contour = dashed navy)',
                      xy=(0.02, 0.06), xycoords='axes fraction',
                      fontsize=8.5, color='navy',
                      bbox=dict(boxstyle='round', fc='white', alpha=0.8))
+
+    # Mark Houston latitude on all panels
+    axes[0].axvline(houston_lat, color='black', lw=1.5, ls='-', alpha=0.7,
+                    zorder=10)
+    axes[0].annotate('Houston\nmetro',
+                     xy=(houston_lat, max_height * 0.92),
+                     xytext=(houston_lat + 0.3, max_height * 0.92),
+                     fontsize=9, fontweight='bold',
+                     ha='left', va='center',
+                     bbox=dict(boxstyle='round,pad=0.3',
+                               fc='yellow', ec='black', alpha=0.9, lw=0.8),
+                     arrowprops=dict(arrowstyle='->', color='black', lw=1.0))
 
     # Panel B: Horizontal wind speed (U)
     # Shows the rear inflow jet aloft vs weak surface winds
@@ -246,18 +262,56 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
                           colors='k', linewidths=0.8, alpha=0.6)
     axes[1].clabel(cs2, fmt='%d m/s', fontsize=8)
 
+    axes[1].set_ylim(0, max_height)
+    axes[1].set_ylabel('Height AGL (m)', fontsize=11)
+    axes[1].set_title('(b) Horizontal Wind Speed |U| \u2014 '
+                      'Inverted Profile Over Houston (PBL Transport Failure)',
+                      fontsize=11, fontweight='bold')
+    axes[1].grid(True, color='#DDDDDD', lw=0.5)
+
+    # Mark Houston longitude on panel (b)
+    axes[1].axvline(houston_lat, color='black', lw=1.5, ls='-', alpha=0.7,
+                    zorder=10)
+
+    # Annotate the inverted profile zone directly over Houston:
+    # box from ~Houston lat \u00b1 0.3\u00b0 spanning surface (0 m) to ~3 km (jet level)
+    box_w = 0.4   # +/- degrees lat around Houston
+    box_left  = houston_lat - box_w
+    box_right = houston_lat + box_w
+    box_top_height = 3500  # m AGL where the elevated jet sits
+
+    # Use a Rectangle patch
+    from matplotlib.patches import Rectangle
+    rect = Rectangle((box_left, 0), 2 * box_w, box_top_height,
+                     fill=False, edgecolor='black', lw=2.0,
+                     ls='--', zorder=11, alpha=0.85)
+    axes[1].add_patch(rect)
+
+    # Diagnose surface vs aloft wind in this column for label
+    col_U  = WSPD[:, hou_j]   # (nz,)
+    col_H  = HGT[:, hou_j]
+    surf_mask  = col_H < 200
+    aloft_mask = (col_H >= 1500) & (col_H <= 3500)
+    surf_U  = col_U[surf_mask].mean() if surf_mask.any() else float('nan')
+    aloft_U = col_U[aloft_mask].mean() if aloft_mask.any() else float('nan')
+
+    # Annotation text inside the box
+    axes[1].annotate(
+        f"Inverted profile over Houston:\n"
+        f"  ~{aloft_U:.0f} m/s aloft (1.5\u20133.5 km AGL)\n"
+        f"  ~{surf_U:.0f} m/s at surface\n"
+        f"  \u2192 PBL/sfc layer fails to transport momentum",
+        xy=(box_right + 0.05, 1500),
+        fontsize=8.5, fontweight='bold', ha='left', va='center',
+        zorder=12,
+        bbox=dict(boxstyle='round,pad=0.4', fc='white',
+                  ec='black', lw=1.0, alpha=0.95))
+
     axes[1].axhline(10, color='blue', lw=1.5, ls=':', alpha=0.8,
                     label='10m AGL (U10 level)')
     axes[1].axhline(70, color='purple', lw=1.5, ls='--', alpha=0.8,
                     label='~70m AGL (lowest model level)')
     axes[1].legend(fontsize=8, loc='upper right')
-
-    axes[1].set_ylim(0, max_height)
-    axes[1].set_ylabel('Height AGL (m)', fontsize=11)
-    axes[1].set_title('(b) Horizontal Wind Speed |U| — '
-                      'Rear-Inflow Jet vs Surface Wind Deficit',
-                      fontsize=11, fontweight='bold')
-    axes[1].grid(True, color='#DDDDDD', lw=0.5)
 
     # Panel C: Vertical velocity (W)
     vmax_w = min(max(abs(np.nanpercentile(W[height_mask], 1)),
@@ -275,12 +329,16 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     axes[2].clabel(cs3, fmt='%+.0f m/s', fontsize=8)
 
     axes[2].set_ylim(0, max_height)
-    axes[2].set_xlabel('Latitude (°N)', fontsize=11)
+    axes[2].set_xlabel('Latitude (\u00b0N)', fontsize=11)
     axes[2].set_ylabel('Height AGL (m)', fontsize=11)
     axes[2].set_title('(c) Vertical Velocity W  '
                       '(orange = upward, purple = downward)',
                       fontsize=11, fontweight='bold')
     axes[2].grid(True, color='#DDDDDD', lw=0.5)
+
+    # Mark Houston latitude on panel (c)
+    axes[2].axvline(houston_lat, color='black', lw=1.5, ls='-', alpha=0.7,
+                    zorder=10)
 
     fig.suptitle('WRF Cold Pool Vertical Structure — Houston Derecho 16 May 2024',
                  fontsize=13, fontweight='bold', y=1.005)
@@ -302,19 +360,47 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     print(f"  Max |U| below 200m AGL:  {WSPD[HGT < 200].max():.1f} m/s")
     print(f"  Max |W| in cross section: {np.abs(W[HGT < max_height]).max():.1f} m/s")
 
+    # Houston column diagnostics
+    print()
+    print(f"--- Column directly over Houston (lat = {lats[hou_j]:.2f}\u00b0N) ---")
+    col_U = WSPD[:, hou_j]
+    col_H = HGT[:, hou_j]
+    col_T = T_anom[:, hou_j]
+
+    bands = [
+        ("Surface (z < 100 m)",        col_H < 100),
+        ("Near-surface (100-500 m)",   (col_H >= 100) & (col_H < 500)),
+        ("Lower BL (500-1500 m)",      (col_H >= 500) & (col_H < 1500)),
+        ("Mid (1500-3000 m)",          (col_H >= 1500) & (col_H < 3000)),
+        ("Upper (3000-5000 m)",        (col_H >= 3000) & (col_H < 5000)),
+    ]
+    for label, b_mask in bands:
+        if b_mask.any():
+            mean_U = col_U[b_mask].mean()
+            max_U  = col_U[b_mask].max()
+            mean_T = col_T[b_mask].mean()
+            print(f"  {label:30s}: |U| mean={mean_U:5.1f} m/s, "
+                  f"max={max_U:5.1f} m/s, T_anom mean={mean_T:+5.2f} K")
+
+    if (col_H < 100).any() and ((col_H >= 3000) & (col_H < 5000)).any():
+        ratio = col_U[(col_H >= 3000) & (col_H < 5000)].mean() / col_U[col_H < 100].mean()
+        print(f"\n  Surface vs aloft (3-5 km) wind speed ratio: {ratio:.1f}x reduction")
+
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Fixed WRF cold pool cross section')
+        description='WRF cold pool cross section over Houston')
     parser.add_argument('--wrfout', nargs='+', required=True,
                         help='WRF output files')
-    parser.add_argument('--peak-time', required=True,
-                        help='UTC peak time: "YYYY-MM-DD HH:MM"')
-    parser.add_argument('--cross-lon', type=float, default=-95.4,
-                        help='Longitude for N-S cross section (default: -95.4)')
+    parser.add_argument('--peak-time', default='2024-05-17 00:00',
+                        help='UTC peak time: "YYYY-MM-DD HH:MM" (default: 2024-05-17 00:00)')
+    parser.add_argument('--cross-lon', type=float, default=-95.35,
+                        help='Longitude for N-S cross section (default: -95.35, downtown Houston)')
+    parser.add_argument('--houston-lat', type=float, default=29.75,
+                        help='Houston latitude for marker (default: 29.75)')
     parser.add_argument('--baseline-end', default='2024-05-16 12:00',
                         help='End time for pre-storm baseline (default: 2024-05-16 12:00)')
-    parser.add_argument('--output', default='figures/coldpool/CP_crosssection.png')
+    parser.add_argument('--output', default='figures/coldpool/CP_crosssection_houston.png')
     parser.add_argument('--max-height', type=int, default=5000)
     args = parser.parse_args()
 
@@ -323,10 +409,11 @@ def main():
 
     all_times = load_wrf_times(args.wrfout)
     col_idx, lats = find_cross_section_column(args.wrfout, args.cross_lon)
-    data = extract_cross_section(all_times, col_idx, all_times, baseline_end)
+    data = extract_cross_section(all_times, col_idx, baseline_end)
 
     plot_cross_section(data, lats, peak_time, args.cross_lon,
-                       args.output, args.max_height)
+                       args.output, args.max_height,
+                       houston_lat=args.houston_lat)
 
 
 if __name__ == '__main__':
