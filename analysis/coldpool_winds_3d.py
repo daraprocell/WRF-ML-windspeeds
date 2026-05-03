@@ -13,7 +13,7 @@ Shows the cold pool as a 3D temperature anomaly isosurface, with:
 Produces an interactive HTML file.
 
 Example use:
-    python coldpool_3d.py \
+    python coldpool_winds_3d.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
         --time "2024-05-16 23:00" \
         --baseline-end "2024-05-16 12:00" \
@@ -375,7 +375,6 @@ def make_3d_winds(data, output_html, output_png=None, subsample=3):
 
     fig = go.Figure()
 
-    # Single trace — all points above threshold, one continuous gradient
     WIND_THRESH = 2.0
     wm = W_f > WIND_THRESH
     if wm.sum() > 0:
