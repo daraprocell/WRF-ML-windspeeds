@@ -14,7 +14,7 @@ Example use:
     python windswath.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
         --asos data/asos/houston_asos_summary.csv \
-        --output figures/windswath/wind_swath_comparison_d02_n.png \
+        --output figures/windswath/wind_swath_comparison_d02.png \
         --event-start "2024-05-16 18:00" \
         --event-end "2024-05-17 02:00"
 """
@@ -171,15 +171,6 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                    edgecolors='black', linewidths=1.5, marker='o',
                    transform=ccrs.PlateCarree())
 
-        # 10 km neighborhood circle (visual reference for the neighborhood max)
-        circle_npts = 60
-        theta       = np.linspace(0, 2 * np.pi, circle_npts)
-        circle_lats = slat + dlat_max * np.cos(theta)
-        circle_lons = slon + dlon_max * np.sin(theta)
-        ax.plot(circle_lons, circle_lats,
-                color='black', lw=0.8, ls='--', alpha=0.55, zorder=7,
-                transform=ccrs.PlateCarree())
-
         ax.annotate(station, xy=(slon, slat),
                     xytext=(4, 4), textcoords='offset points',
                     fontsize=6.5, fontweight='bold', zorder=9,
@@ -279,7 +270,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     ]
     col_widths = [0.08, 0.14, 0.14, 0.14, 0.14, 0.18, 0.18]
 
-    header_y = 0.98
+    header_y = 0.92
     x_pos = 0.0
     for label, w in zip(col_labels, col_widths):
         tbl_ax.text(x_pos + w/2, header_y, label,
@@ -292,9 +283,9 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
 
     tbl_ax.axhline(header_y - 0.05, color='#2C3E50', lw=1.5)
 
-    row_height = 0.86 / max(len(table_rows), 1)
+    row_height = 0.80 / max(len(table_rows), 1)
     for r_idx, row_data in enumerate(table_rows):
-        y = header_y - 0.08 - r_idx * row_height
+        y = header_y - 0.10 - r_idx * row_height
         bg_color = '#F8F9FA' if r_idx % 2 == 0 else 'white'
 
         tbl_ax.add_patch(
@@ -328,7 +319,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                         transform=tbl_ax.transAxes)
             x_pos += w
 
-    tbl_ax.text(0.5, 1.10,
+    tbl_ax.text(0.5, 1.04,
                 'ASOS Station Comparison \u2014 Observed Peak Gust vs WRF at Station Grid Point '
                 'and within 10 km Neighborhood',
                 ha='center', va='top', fontsize=9, fontweight='bold',
