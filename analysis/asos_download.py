@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-coldpool_asos_download.py
+asos_download.py
 ----------------
 Download ASOS data for WRF wind and cold pool comparison.
 
@@ -20,7 +20,7 @@ Variables downloaded (all needed for cold pool + wind analysis):
   - wxcodes : weather codes              → precipitation/convection indicator
 
 Example use:
-    python coldpool_asos_download.py --event houston --start "2024-05-16 00:00" --end "2024-05-17 06:00"
+    python asos_download.py --event houston --start "2024-05-16 00:00" --end "2024-05-17 06:00"
 """
 
 import argparse

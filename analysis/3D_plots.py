@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-coldpool_3d.py
+3D_plots.py
 --------------
 3D visualization of WRF cold pool structure using Plotly.
 
@@ -13,7 +13,7 @@ Shows the cold pool as a 3D temperature anomaly isosurface, with:
 Produces an interactive HTML file.
 
 Example use:
-    python coldpool_winds_3d.py \
+    python 3D_plots.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
         --time "2024-05-16 23:00" \
         --baseline-end "2024-05-16 12:00" \

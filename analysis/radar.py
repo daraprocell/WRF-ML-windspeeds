@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-wrf_radar_plotting.py
+radar.py
 -----------------------
 Compare WRF simulated reflectivity (REFL_10CM) against IEM NEXRAD composite
 reflectivity for the Houston derecho event.
@@ -12,7 +12,7 @@ Produces:
   4. refl_comparison.gif         — side-by-side WRF vs obs animated GIF
 
 Example use:
-    python wrf_radar_plotting.py \
+    python radar.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
         --output-dir figures/radar \
         --event-window-start "2024-05-16 18:00" \
