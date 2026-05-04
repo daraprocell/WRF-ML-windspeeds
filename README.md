@@ -2,8 +2,8 @@
 
 A pipeline for simulating severe convective wind events using the Weather Research and
 Forecasting (WRF) model and correcting surface wind speed predictions with machine
-learning, validated against ASOS station observations and NEXRAD radar data. Developed in 
-support of downed power line prediction for a Midwest utility partner.
+learning, validated against ASOS station observations and NEXRAD radar data. Developed
+in support of downed power line prediction for a Midwest utility partner.
 
 ---
 
@@ -12,10 +12,12 @@ support of downed power line prediction for a Midwest utility partner.
 Operational NWP models systematically underpredict surface wind speeds during derecho
 events. This project addresses that gap by:
 
-1. Running high-resolution WRF simulations (3 km / 1 km nested domains) for historical derecho events using HRRR data
-2. Downloading and processing ASOS surface observations and NEXRAD data for validation
+1. Running high-resolution WRF simulations (3 km / 1 km nested domains) for historical
+   derecho events using HRRR forcing
+2. Downloading and processing ASOS surface observations and NEXRAD radar data for
+   validation
 3. Extracting WRF surface wind output collocated with ASOS stations
-4. Analyzing cold pool dynamics from both WRF output and observations
+4. Diagnosing storm structure, cold pool dynamics, and vertical wind profiles
 5. Training ML models to predict and correct the WRF–observed wind bias (in progress)
 6. Evaluating spatial bias patterns to inform power line outage risk (in progress)
 
@@ -23,11 +25,11 @@ events. This project addresses that gap by:
 
 ## Events
 
-| Event       | Date         | Data     | Status             |
+| Event       | Date         | Forcing  | Status             |
 |-------------|--------------|----------|--------------------|
-| Houston, TX | May 2024     | GFS/HRRR | Complete           |
+| Houston, TX | May 2024     | HRRR     | Complete           |
 | Iowa        | August 2020  | HRRR     | In progress        |
-| Colorado    | Dec 2020     | HRRR     | In progress        |
+| Colorado    | December 2020| HRRR     | In progress        |
 | Midwest     | June 2012    | HRRR     | In progress        |
 
 ---
@@ -36,86 +38,54 @@ events. This project addresses that gap by:
 
 ```
 WRF-ML-windspeeds/
-├── namelist/                     # WRF namelist.input and namelist.wps files per event
-├── scripts/
-│   ├── preprocessing/            # WPS/metgrid setup, Vtable configuration
-│   └── analysis/
-│       ├── WRF_ASOS_analysis.py      # ML bias correction pipeline
-│       ├── ASOS_download.py          # ASOS peak wind summary download
-│       ├── coldpool_asos_download.py # ASOS full time series + cold pool diagnostics
-│       ├── coldpool_analysis.py      # WRF cold pool visualization and ASOS comparison
-│       └── wrf_radar_plotting.py     # WRF vs. NEXRAD reflectivity plots and animations
-├── data/
-│   └── asos/                     # ASOS station observations (not tracked in git)
-├── figures/
-│   ├── radar/                    # Reflectivity comparison outputs
-│   └── coldpool/                 # Cold pool analysis outputs
-└── README.md
+├── analysis/
+│   ├── data/asos/                # ASOS observation data per event
+│   │   ├── {event}_asos_summary.csv      # per-station peak gust statistics
+│   │   ├── {event}_asos_timeseries.csv   # full 5-min time series (Houston only)
+│   │   └── {event}_metadata.json         # station metadata
+│   ├── figures/                  # Analysis figure outputs
+│   ├── asos_download.py          # ASOS download from IEM
+│   ├── radar.py                  # WRF vs. NEXRAD reflectivity comparison
+│   ├── windswath.py              # WRF wind swath vs. ASOS peak gust comparison
+│   ├── crosssection.py           # Vertical cross sections of T anomaly, |U|, W
+│   ├── 3D_plots.py               # 3D cold pool visualizations (Plotly)
+│   └── ML_analysis.py            # ML bias correction pipeline (LOGO-CV by station)
+├── wrf/
+│   └── events/                   # WRF namelist.input and namelist.wps per event
+├── LICENSE
+├── README.md
+└── requirements.txt
 ```
 
 ---
 
 ## Analysis Scripts
 
-### `ASOS_download.py`
+### `asos_download.py`
 Downloads 5-minute ASOS observations from the Iowa Environmental Mesonet for a given
-event and time window, computes peak wind statistics per station, and saves a summary
-CSV compatible with the ML bias correction pipeline.
+event and time window. Computes peak wind statistics per station and saves a summary
+CSV compatible with the ML bias correction pipeline. For Houston, additionally retrieves
+the full 5 minute time series for cold pool investigation.
 
 ```bash
-python ASOS_download.py --event houston --start "2024-05-16 06:00" --end "2024-05-17 06:00"
-```
-
-**Output:** `data/asos/{event}_asos_summary.csv`, `data/asos/{event}_metadata.json`
-
----
-
-### `coldpool_asos_download.py`
-Extended ASOS download script that retrieves the full 5-minute time series (temperature,
-dewpoint, wind, pressure, weather codes) and computes derived cold pool diagnostics:
-temperature anomalies, pressure surges, rolling peak gusts, and cold pool passage detection.
-
-```bash
-python coldpool_asos_download.py --event houston \
+python asos_download.py --event houston \
     --start "2024-05-16 00:00" --end "2024-05-17 06:00"
 ```
 
 **Output:**
-- `data/asos/{event}_asos_timeseries.csv` — full time series, all stations
-- `data/asos/{event}_asos_summary.csv` — per-station peak stats (ML-pipeline compatible)
+- `data/asos/{event}_asos_summary.csv` — per-station peak stats
+- `data/asos/{event}_asos_timeseries.csv` — full time series (when applicable)
+- `data/asos/{event}_metadata.json` — station metadata
 
 ---
 
-### `coldpool_analysis.py`
-Visualizes WRF cold pool dynamics and compares simulated fields against ASOS ground
-truth. Reads WRF output and the ASOS time series produced by `coldpool_asos_download.py`.
+### `radar.py`
+Compares WRF simulated composite reflectivity against IEM NEXRAD composite reflectivity
+for qualitative storm track and structure validation. Produces side-by-side static
+comparisons and animations using an NWS-standard reflectivity colormap.
 
 ```bash
-python coldpool_analysis.py \
-    --event houston \
-    --asos data/asos/houston_asos_timeseries.csv \
-    --wrfout /path/to/wrfout_d01_* \
-    --output-dir figures/coldpool \
-    --peak-time "2024-05-16 23:00" \
-    --event-window-start "2024-05-16 20:00" \
-    --event-window-end "2024-05-17 02:00"
-```
-
-**Output:**
-- `coldpool_timeseries_{event}.png` — per-station T / wind / pressure time series panels
-- `coldpool_spatial_{event}.png` — spatial snapshot at peak event time
-- `coldpool_sweep_{event}.gif` — animated cold pool propagation
-- `coldpool_crosssection_{event}.png` — N–S vertical cross section at peak time
-
----
-
-### `wrf_radar_plotting.py`
-Compares WRF simulated reflectivity (`REFL_10CM`) against IEM NEXRAD composite
-reflectivity for qualitative storm track and structure validation. Uses an NWS-standard
-reflectivity colormap.
-
-```bash
-python wrf_radar_plotting.py \
+python radar.py \
     --wrfout /path/to/wrfout_d01_* \
     --output-dir figures/radar \
     --event-window-start "2024-05-16 18:00" \
@@ -124,24 +94,74 @@ python wrf_radar_plotting.py \
 ```
 
 **Output:**
-- `wrf_refl_vs_obs_{time}.png` — side-by-side WRF vs. observed at peak time
-- `wrf_refl_animation.gif` — WRF reflectivity evolution
-- `obs_refl_animation.gif` — observed reflectivity over same window
-- `refl_comparison.gif` — side-by-side animated comparison
+- `refl_comparison_{time}.png` — side-by-side WRF vs. observed at peak time
+- `wrf_refl_animation.gif`, `obs_refl_animation.gif`, `refl_comparison.gif`
 
 ---
 
-### `WRF_ASOS_analysis.py`
+### `windswath.py`
+Computes the WRF maximum 10-m wind speed at each grid point over the event window
+("windswath") and compares against ASOS observed peak gusts. Produces a map with 
+station overlays plus an embedded comparison table showing the WRF wind speed
+at each station's grid point and within a 10-km neighborhood radius. 
+
+```bash
+python windswath.py \
+    --wrfout /path/to/wrfout_d02_* \
+    --asos data/asos/houston_asos_summary.csv \
+    --output figures/windswath/wind_swath_comparison_d02.png \
+    --event-start "2024-05-16 18:00" \
+    --event-end "2024-05-17 02:00"
+```
+
+**Output:** Wind swath comparison figure with embedded ASOS station table
+
+---
+
+### `crosssection.py`
+Extracts north–south vertical cross sections through the WRF output to diagnose the
+vertical structure of the cold pool, the horizontal wind profile, and the vertical
+velocity field. 
+
+```bash
+python crosssection.py \
+    --wrfout /path/to/wrfout_d02_* \
+    --longitude -95.35 \
+    --time "2024-05-17 00:00" \
+    --output figures/coldpool/crosssection_houston.png
+```
+
+**Output:** Three-panel cross section (T anomaly, |U|, W) with cold pool top contoured
+
+---
+
+### `3D_plots.py`
+Generates interactive 3D visualizations of the WRF cold pool temperature anomaly field
+and accompanying wind structure using Plotly. Used for diagnostic exploration of cold
+pool depth, intensity, and centroid location relative to verification stations.
+
+```bash
+python 3D_plots.py \
+    --wrfout /path/to/wrfout_d02_* \
+    --time "2024-05-17 00:00" \
+    --output figures/coldpool/coldpool_3d.html
+```
+
+**Output:** Interactive HTML visualization
+
+---
+
+### `ML_analysis.py`
 Main ML bias correction pipeline. Collocates WRF output with ASOS stations, trains
 models to predict the WRF–observed wind bias, and evaluates performance using
-Leave-One-Out Cross-Validation by station (LOGO-CV) to prevent data leakage.
+Leave-One-Group-Out Cross-Validation by station (LOGO-CV) to prevent data leakage.
 
 ```bash
 # Single event
-python WRF_ASOS_analysis.py --event houston --wrfout /path/to/wrfout
+python ML_analysis.py --event houston --wrfout /path/to/wrfout
 
 # Multi-event training
-python WRF_ASOS_analysis.py --multi-event --events houston iowa colorado
+python ML_analysis.py --multi-event --events houston iowa colorado
 ```
 
 **Key design choices:**
@@ -149,22 +169,29 @@ python WRF_ASOS_analysis.py --multi-event --events houston iowa colorado
 - Features include WRF wind components (u, v), surface pressure, temperature, and
   spatial coordinates (lat, lon, distance to coast)
 - Models: Random Forest, Gradient Boosting, XGBoost
-- LOGO-CV prevents a single event's station observations from appearing in both
-  training and test sets
+- LOGO-CV prevents a single station's observations from appearing in both training
+  and test sets
 
 ---
 
 ## WRF Configuration
 
+- **Model version:** WRF v4.7.1
 - **Projection:** Lambert Conformal
-- **Domains:** 3 km outer / 1 km inner nested domains
-- **Forcing:** GFS (historical runs); transitioning to HRRR for improved mesoscale representation
+- **Domains:** 3 km outer (d01) / 1 km inner (d02) nested
+- **Vertical levels:** 47 terrain-following levels, lowest level ~60–73 m AGL
+- **Forcing:** HRRR initial and lateral boundary conditions, hourly updates
 - **Physics:**
-  - Microphysics: *[fill in]*
-  - PBL scheme: *[fill in]*
-  - Cumulus scheme: *[fill in]*
+  - Microphysics: NSSL 2-moment (mp_physics = 17)
+  - Radiation: Goddard shortwave and longwave (ra_sw_physics = 5, ra_lw_physics = 5)
+  - Surface layer: Revised MM5 (sf_sfclay_physics = 1)
+  - Land surface model: RUC (sf_surface_physics = 3)
+  - PBL: Yonsei University (YSU)
+  - Cumulus: None (convection-permitting on both domains)
+- **Output frequency:** d01 hourly, d02 every 15 min
 - **HPC:** UIUC Keeling cluster
 
+---
 
 ## Requirements
 
@@ -180,7 +207,7 @@ cartopy
 wrf-python
 requests
 Pillow
-Plotly
+plotly
 kaleido
 ```
 
@@ -194,16 +221,15 @@ pip install -r requirements.txt
 
 ## Limitations
 
-- ML models trained on a single event with 13 stations are prone to overfitting;
-  multi-event LOGO-CV is the intended production approach
-- HRRR forcing migration is ongoing for all events beyond Houston
-- Radar comparison (`wrf_radar_plotting.py`) currently configured for Houston only
+- This repository is a work in progress - Future work includes the ml_analysis.py use
+  with several different events that have not been simulated yet with WRF
+- Radar comparison (`radar.py`) currently configured for Houston only; extension to
+  remaining events is in progress
 
 ---
 
-
 ## Author
 
-Dara Procell  
-University of Illinois Urbana-Champaign  
+Dara Procell
+University of Illinois Urbana-Champaign
 Department of Atmospheric Sciences
