@@ -293,8 +293,7 @@ def plot_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
     if obs_dt is not None and obs_dt != wrf_dt:
         offset_min = (wrf_dt - obs_dt).total_seconds() / 60.0
         suptitle = (
-            'WRF vs Observed Radar - Houston Derecho 16 May 2024\n'
-            f'(WRF lagged by {offset_min:.0f} min relative to observations)'
+            'WRF vs Observed Radar - Houston Derecho 16 May 2024'
         )
     else:
         suptitle = 'WRF vs Observed Radar - Houston Derecho 16 May 2024'
