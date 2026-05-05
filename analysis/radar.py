@@ -6,37 +6,43 @@ Compare WRF simulated reflectivity (REFL_10CM) against IEM NEXRAD composite
 reflectivity for the Houston derecho event.
 
 Produces:
-  1. wrf_refl_vs_obs_{time}.png  - side-by-side comparison at peak time
-  2. wrf_refl_animation.gif      - WRF reflectivity evolution over event window
-  3. obs_refl_animation.gif      - observed reflectivity over same window
-  4. refl_comparison.gif         - side-by-side WRF vs obs animated GIF
+  1. refl_comparison_{time}.png  - one side-by-side PNG per WRF time step
+  2. wrf_refl.gif      - WRF reflectivity evolution
+  3. obs_refl.gif      - observed reflectivity evolution
+  4. refl_comparison.gif         - side-by-side WRF vs obs GIF
 
-Use --peak-only to produce ONLY the side-by-side peak comparison figure to
-save time.
+Use --peak-time to produce a single comparison PNG for one specific time
+instead of looping over all WRF time steps.
 
-Use --obs-time-offset HOURS to compare WRF at peak_time against observed
-radar at (peak_time - HOURS). Positive values mean the simulated storm
-lags the observed storm by HOURS hours, so the observed radar is sampled
-earlier in time.
+Use --obs-time-offset MINUTES to compare WRF at each WRF time against
+observed radar from MINUTES earlier. Positive values mean the simulated
+storm lags the observed storm. When this flag is used, gifs are
+skipped to analyze just the tiem offset.
 
-Example:
-    # Normal simultaneous comparison
+Examples:
+    # Normal simultaneous comparison (all WRF time steps + gifs)
+    python radar.py \
+        --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
+        --output-dir figures/radar \
+        --event-window-start "2024-05-16 18:00" \
+        --event-window-end "2024-05-17 02:00"
+
+    # Single-time comparison at one specific peak time
     python radar.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
         --output-dir figures/radar \
         --event-window-start "2024-05-16 18:00" \
         --event-window-end "2024-05-17 02:00" \
-        --peak-time "2024-05-17 00:00"
+        --peak-time "2024-05-17 01:00"
 
-    # Lag-corrected comparison: WRF at 0100Z vs NEXRAD at 0000Z
+    # Lag-corrected single-time comparison: WRF at 0100Z vs NEXRAD 75 min earlier
     python radar.py \
         --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
         --output-dir figures/radar \
         --event-window-start "2024-05-16 18:00" \
         --event-window-end "2024-05-17 02:00" \
         --peak-time "2024-05-17 01:00" \
-        --obs-time-offset 1.0 \
-        --peak-only
+        --obs-time-offset 75
 """
 
 import argparse
@@ -245,48 +251,56 @@ def plot_refl_panel(ax, refl, lat, lon, title, stations=None,
     return cf
 
 
-# Figure 1: Side by side at peak time
+# Figure 1: Side by side comparison
 
-def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
-                         peak_dt, output_path, obs_dt=None):
+def plot_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
+                    wrf_dt, output_path, obs_dt=None):
     """
-    Side by side WRF simulated vs observed reflectivity at peak event time.
-    If obs_dt is provided and differs from peak_dt, the observed panel is
-    labeled with the observed/radar time and the time offset is added to 
-    the figure subtitle.
+    Side by side WRF simulated vs observed reflectivity at a single time.
+    If obs_dt is provided and differs from wrf_dt, the observed panel is
+    labeled with the observed-radar time and the time offset (in minutes)
+    is shown in the figure title.
     """
-    fig, axes = plt.subplots(1, 2, figsize=(18, 8),
-                             subplot_kw={'projection': ccrs.PlateCarree()})
+
+    fig = plt.figure(figsize=(18, 9))
+    gs = fig.add_gridspec(
+        nrows=2, ncols=2,
+        height_ratios=[1.0, 0.04],
+        hspace=0.05, wspace=0.05,
+        left=0.05, right=0.97, top=0.92, bottom=0.05,
+    )
+    ax_wrf = fig.add_subplot(gs[0, 0], projection=ccrs.PlateCarree())
+    ax_obs = fig.add_subplot(gs[0, 1], projection=ccrs.PlateCarree())
+    ax_cb  = fig.add_subplot(gs[1, :])  # colorbar spans full width
 
     # WRF panel
     cf1 = plot_refl_panel(
-        axes[0], wrf_refl, wrf_lat, wrf_lon,
-        f'WRF Simulated Composite Reflectivity\n{peak_dt.strftime("%Y-%m-%d %H:%MZ")}',
+        ax_wrf, wrf_refl, wrf_lat, wrf_lon,
+        f'WRF Simulated Composite Reflectivity\n{wrf_dt.strftime("%Y-%m-%d %H:%MZ")}',
         stations=HOUSTON_STATIONS)
 
     # Observed panel
-    obs_label_dt = obs_dt if obs_dt is not None else peak_dt
+    obs_label_dt = obs_dt if obs_dt is not None else wrf_dt
 
     cf2 = plot_refl_panel(
-        axes[1], obs_refl, wrf_lat, wrf_lon,
+        ax_obs, obs_refl, wrf_lat, wrf_lon,
         f'NEXRAD Observed Composite Reflectivity\n{obs_label_dt.strftime("%Y-%m-%d %H:%MZ")}',
         stations=HOUSTON_STATIONS)
 
-    plt.colorbar(cf1, ax=axes, label='Composite Reflectivity (dBZ)',
-                 orientation='horizontal', pad=0.05, shrink=0.6)
+    plt.colorbar(cf1, cax=ax_cb, orientation='horizontal',
+                 label='Composite Reflectivity (dBZ)')
 
-    if obs_dt is not None and obs_dt != peak_dt:
-        offset_hours = (peak_dt - obs_dt).total_seconds() / 3600.0
+    if obs_dt is not None and obs_dt != wrf_dt:
+        offset_min = (wrf_dt - obs_dt).total_seconds() / 60.0
         suptitle = (
             'WRF vs Observed Radar - Houston Derecho 16 May 2024\n'
-            f'(WRF lagged by {offset_hours:.1f} h relative to observations)'
+            f'(WRF lagged by {offset_min:.0f} min relative to observations)'
         )
     else:
         suptitle = 'WRF vs Observed Radar - Houston Derecho 16 May 2024'
 
-    fig.suptitle(suptitle, fontsize=14, fontweight='bold', y=1.02)
+    fig.suptitle(suptitle, fontsize=14, fontweight='bold', y=0.98)
 
-    plt.tight_layout()
     plt.savefig(output_path, dpi=200, bbox_inches='tight')
     plt.close()
 
@@ -405,30 +419,33 @@ def main():
         description='WRF reflectivity vs observed radar comparison')
     parser.add_argument('--wrfout', nargs='+', required=True)
     parser.add_argument('--output-dir', default='figures/radar')
-    parser.add_argument('--peak-time', required=True,
-                        help='UTC peak time: "YYYY-MM-DD HH:MM"')
-    parser.add_argument('--event-window-start', required=True)
-    parser.add_argument('--event-window-end', required=True)
+    parser.add_argument('--event-window-start', required=True,
+                        help='Start of event window: "YYYY-MM-DD HH:MM" (UTC)')
+    parser.add_argument('--event-window-end', required=True,
+                        help='End of event window: "YYYY-MM-DD HH:MM" (UTC)')
+    parser.add_argument('--peak-time', default=None,
+                        help='Optional UTC time "YYYY-MM-DD HH:MM" for which '
+                             'a single comparison PNG will be produced. '
+                             'When provided, gifs are skipped and only '
+                             'the one PNG closest to this time is generated.')
     parser.add_argument('--gif-fps', type=int, default=3)
     parser.add_argument('--skip-obs', action='store_true',
                         help='Skip observed radar download (offline mode)')
-    parser.add_argument('--peak-only', action='store_true',
-                        help='Produce only the peak-time comparison figure '
-                             '(skip animations)')
     parser.add_argument('--obs-time-offset', type=float, default=0.0,
-                        help='Hours to subtract from peak_time when sampling '
-                             'observed radar. Use a positive value when WRF '
-                             'lags observations. Example: --obs-time-offset 1.0 '
-                             'pairs WRF at peak_time with observed radar at '
-                             '(peak_time - 1 h).')
+                        help='Minutes to subtract from each WRF time when '
+                             'sampling observed radar. Use a positive value '
+                             'when WRF lags observations. Example: '
+                             '--obs-time-offset 75 pairs WRF at each time '
+                             'with observed radar from 75 min earlier. '
+                             'When non-zero, gifs are skipped.')
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    peak_time          = pd.to_datetime(args.peak_time)
-    event_start        = pd.to_datetime(args.event_window_start)
-    event_end          = pd.to_datetime(args.event_window_end)
+    event_start = pd.to_datetime(args.event_window_start)
+    event_end   = pd.to_datetime(args.event_window_end)
+    obs_offset_min = args.obs_time_offset
 
     # Load WRF time inventory
     all_times = load_wrf_times(args.wrfout)
@@ -449,35 +466,41 @@ def main():
             wrf_lon = lon
         wrf_frames.append((dt, refl))
 
-    # Find the WRF frame closest to peak_time
-    peak_idx = np.argmin([abs((dt - peak_time).total_seconds())
-                          for dt, _ in wrf_frames])
-    peak_dt, peak_wrf_refl = wrf_frames[peak_idx]
-
-    # Determine observed radar time
-    obs_offset_hours = args.obs_time_offset
-    obs_dt = peak_dt - pd.Timedelta(hours=obs_offset_hours)
-
-    peak_obs = None
-    if not args.skip_obs:
-        obs_img, _ = download_iem_radar(obs_dt)
-        if obs_img is not None:
-            peak_obs = iem_image_to_refl(obs_img, wrf_lat, wrf_lon)
-
-    # Figure 1: Peak time side by side comparison
-    if obs_offset_hours != 0.0:
-        out_name = (f'refl_comparison_{peak_dt.strftime("%Y%m%d_%H%MZ")}_'
-                    f'vs_obs_{obs_dt.strftime("%H%MZ")}.png')
+    # If --peak-time was provided, narrow to the single nearest WRF frame
+    if args.peak_time is not None:
+        peak_time = pd.to_datetime(args.peak_time)
+        peak_idx = np.argmin([abs((dt - peak_time).total_seconds())
+                              for dt, _ in wrf_frames])
+        png_frames = [wrf_frames[peak_idx]]
     else:
-        out_name = f'refl_comparison_{peak_dt.strftime("%Y%m%d_%H%MZ")}.png'
+        png_frames = wrf_frames
 
-    plot_peak_comparison(
-        peak_wrf_refl, wrf_lat, wrf_lon, peak_obs, peak_dt,
-        output_dir / out_name,
-        obs_dt=obs_dt if obs_offset_hours != 0.0 else None,
-    )
+    # Side by side comparison PNG for each selected WRF time step
+    for wrf_dt, wrf_refl in png_frames:
+        obs_dt = wrf_dt - pd.Timedelta(minutes=obs_offset_min)
 
-    # Download obs at every WRF frame time 
+        obs_refl = None
+        if not args.skip_obs:
+            obs_img, _ = download_iem_radar(obs_dt)
+            if obs_img is not None:
+                obs_refl = iem_image_to_refl(obs_img, wrf_lat, wrf_lon)
+
+        # Output filename reflects whether an offset was applied
+        if obs_offset_min != 0.0:
+            out_name = (f'refl_comparison_{wrf_dt.strftime("%Y%m%d_%H%MZ")}_'
+                        f'vs_obs_{obs_dt.strftime("%H%MZ")}.png')
+        else:
+            out_name = f'refl_comparison_{wrf_dt.strftime("%Y%m%d_%H%MZ")}.png'
+
+        plot_comparison(
+            wrf_refl, wrf_lat, wrf_lon, obs_refl, wrf_dt,
+            output_dir / out_name,
+            obs_dt=obs_dt if obs_offset_min != 0.0 else None,
+        )
+
+        return
+
+    # Download obs at every WRF frame time
     obs_frames = []
     if not args.skip_obs:
         for dt, _ in wrf_frames:
@@ -490,21 +513,21 @@ def main():
     else:
         obs_frames = [None] * len(wrf_frames)
 
-    # Figure 2: WRF gif
+    # WRF only gif
     make_refl_gif(
         wrf_frames,
-        output_dir / 'wrf_refl_animation.gif',
+        output_dir / 'wrf_refl.gif',
         fps=args.gif_fps,
         mode='wrf',
         wrf_lat=wrf_lat,
         wrf_lon=wrf_lon
     )
 
-    # Figure 3: Side by side comparison GIF
+    # Side by side comparison gif
     if any(o is not None for o in obs_frames):
         make_refl_gif(
             wrf_frames,
-            output_dir / 'refl_comparison_animation.gif',
+            output_dir / 'refl_comparison.gif',
             fps=args.gif_fps,
             mode='comparison',
             wrf_lat=wrf_lat,
