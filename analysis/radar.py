@@ -267,7 +267,7 @@ def plot_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
         nrows=2, ncols=2,
         height_ratios=[1.0, 0.04],
         hspace=0.05, wspace=0.05,
-        left=0.05, right=0.97, top=0.92, bottom=0.05,
+        left=0.05, right=0.97, top=0.86, bottom=0.05,
     )
     ax_wrf = fig.add_subplot(gs[0, 0], projection=ccrs.PlateCarree())
     ax_obs = fig.add_subplot(gs[0, 1], projection=ccrs.PlateCarree())
@@ -299,9 +299,9 @@ def plot_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
     else:
         suptitle = 'WRF vs Observed Radar - Houston Derecho 16 May 2024'
 
-    fig.suptitle(suptitle, fontsize=14, fontweight='bold', y=0.98)
+    fig.suptitle(suptitle, fontsize=14, fontweight='bold', y=0.96)
 
-    plt.savefig(output_path, dpi=200, bbox_inches='tight')
+    plt.savefig(output_path, dpi=200)
     plt.close()
 
 
