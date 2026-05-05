@@ -6,18 +6,37 @@ Compare WRF simulated reflectivity (REFL_10CM) against IEM NEXRAD composite
 reflectivity for the Houston derecho event.
 
 Produces:
-  1. wrf_refl_vs_obs_{time}.png  — side-by-side comparison at peak time
-  2. wrf_refl_animation.gif      — WRF reflectivity evolution over event window
-  3. obs_refl_animation.gif      — observed reflectivity over same window
-  4. refl_comparison.gif         — side-by-side WRF vs obs animated GIF
+  1. wrf_refl_vs_obs_{time}.png  - side-by-side comparison at peak time
+  2. wrf_refl_animation.gif      - WRF reflectivity evolution over event window
+  3. obs_refl_animation.gif      - observed reflectivity over same window
+  4. refl_comparison.gif         - side-by-side WRF vs obs animated GIF
 
-Example use:
+Use --peak-only to produce ONLY the side-by-side peak comparison figure to
+save time.
+
+Use --obs-time-offset HOURS to compare WRF at peak_time against observed
+radar at (peak_time - HOURS). Positive values mean the simulated storm
+lags the observed storm by HOURS hours, so the observed radar is sampled
+earlier in time.
+
+Example:
+    # Normal simultaneous comparison
     python radar.py \
-        --wrfout /data/scratch/a/procell2/messin_around/wrfout_d01_* \
+        --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
         --output-dir figures/radar \
         --event-window-start "2024-05-16 18:00" \
         --event-window-end "2024-05-17 02:00" \
-        --peak-time "2024-05-16 23:00"
+        --peak-time "2024-05-17 00:00"
+
+    # Lag-corrected comparison: WRF at 0100Z vs NEXRAD at 0000Z
+    python radar.py \
+        --wrfout /data/scratch/a/procell2/messin_around/wrfout_d02_* \
+        --output-dir figures/radar \
+        --event-window-start "2024-05-16 18:00" \
+        --event-window-end "2024-05-17 02:00" \
+        --peak-time "2024-05-17 01:00" \
+        --obs-time-offset 1.0 \
+        --peak-only
 """
 
 import argparse
@@ -229,9 +248,12 @@ def plot_refl_panel(ax, refl, lat, lon, title, stations=None,
 # Figure 1: Side by side at peak time
 
 def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
-                         peak_dt, output_path):
+                         peak_dt, output_path, obs_dt=None):
     """
     Side by side WRF simulated vs observed reflectivity at peak event time.
+    If obs_dt is provided and differs from peak_dt, the observed panel is
+    labeled with the observed/radar time and the time offset is added to 
+    the figure subtitle.
     """
     fig, axes = plt.subplots(1, 2, figsize=(18, 8),
                              subplot_kw={'projection': ccrs.PlateCarree()})
@@ -243,17 +265,26 @@ def plot_peak_comparison(wrf_refl, wrf_lat, wrf_lon, obs_refl,
         stations=HOUSTON_STATIONS)
 
     # Observed panel
+    obs_label_dt = obs_dt if obs_dt is not None else peak_dt
 
     cf2 = plot_refl_panel(
         axes[1], obs_refl, wrf_lat, wrf_lon,
-        f'NEXRAD Observed Composite Reflectivity\n{peak_dt.strftime("%Y-%m-%d %H:%MZ")}',
+        f'NEXRAD Observed Composite Reflectivity\n{obs_label_dt.strftime("%Y-%m-%d %H:%MZ")}',
         stations=HOUSTON_STATIONS)
 
     plt.colorbar(cf1, ax=axes, label='Composite Reflectivity (dBZ)',
                  orientation='horizontal', pad=0.05, shrink=0.6)
 
-    fig.suptitle('WRF vs Observed Radar \u2014 Houston Derecho 16 May 2024',
-                 fontsize=14, fontweight='bold', y=1.02)
+    if obs_dt is not None and obs_dt != peak_dt:
+        offset_hours = (peak_dt - obs_dt).total_seconds() / 3600.0
+        suptitle = (
+            'WRF vs Observed Radar - Houston Derecho 16 May 2024\n'
+            f'(WRF lagged by {offset_hours:.1f} h relative to observations)'
+        )
+    else:
+        suptitle = 'WRF vs Observed Radar - Houston Derecho 16 May 2024'
+
+    fig.suptitle(suptitle, fontsize=14, fontweight='bold', y=1.02)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=200, bbox_inches='tight')
@@ -381,6 +412,15 @@ def main():
     parser.add_argument('--gif-fps', type=int, default=3)
     parser.add_argument('--skip-obs', action='store_true',
                         help='Skip observed radar download (offline mode)')
+    parser.add_argument('--peak-only', action='store_true',
+                        help='Produce only the peak-time comparison figure '
+                             '(skip animations)')
+    parser.add_argument('--obs-time-offset', type=float, default=0.0,
+                        help='Hours to subtract from peak_time when sampling '
+                             'observed radar. Use a positive value when WRF '
+                             'lags observations. Example: --obs-time-offset 1.0 '
+                             'pairs WRF at peak_time with observed radar at '
+                             '(peak_time - 1 h).')
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -409,7 +449,35 @@ def main():
             wrf_lon = lon
         wrf_frames.append((dt, refl))
 
-    # Download observed radar frames
+    # Find the WRF frame closest to peak_time
+    peak_idx = np.argmin([abs((dt - peak_time).total_seconds())
+                          for dt, _ in wrf_frames])
+    peak_dt, peak_wrf_refl = wrf_frames[peak_idx]
+
+    # Determine observed radar time
+    obs_offset_hours = args.obs_time_offset
+    obs_dt = peak_dt - pd.Timedelta(hours=obs_offset_hours)
+
+    peak_obs = None
+    if not args.skip_obs:
+        obs_img, _ = download_iem_radar(obs_dt)
+        if obs_img is not None:
+            peak_obs = iem_image_to_refl(obs_img, wrf_lat, wrf_lon)
+
+    # Figure 1: Peak time side by side comparison
+    if obs_offset_hours != 0.0:
+        out_name = (f'refl_comparison_{peak_dt.strftime("%Y%m%d_%H%MZ")}_'
+                    f'vs_obs_{obs_dt.strftime("%H%MZ")}.png')
+    else:
+        out_name = f'refl_comparison_{peak_dt.strftime("%Y%m%d_%H%MZ")}.png'
+
+    plot_peak_comparison(
+        peak_wrf_refl, wrf_lat, wrf_lon, peak_obs, peak_dt,
+        output_dir / out_name,
+        obs_dt=obs_dt if obs_offset_hours != 0.0 else None,
+    )
+
+    # Download obs at every WRF frame time 
     obs_frames = []
     if not args.skip_obs:
         for dt, _ in wrf_frames:
@@ -422,17 +490,6 @@ def main():
     else:
         obs_frames = [None] * len(wrf_frames)
 
-    # Figure 1: Peak time side by side
-    peak_idx = np.argmin([abs((dt - peak_time).total_seconds())
-                          for dt, _ in wrf_frames])
-    peak_dt, peak_wrf_refl = wrf_frames[peak_idx]
-    peak_obs = obs_frames[peak_idx] if obs_frames else None
-
-    plot_peak_comparison(
-        peak_wrf_refl, wrf_lat, wrf_lon, peak_obs, peak_dt,
-        output_dir / f'refl_comparison_{peak_dt.strftime("%Y%m%d_%H%MZ")}.png'
-    )
-
     # Figure 2: WRF gif
     make_refl_gif(
         wrf_frames,
@@ -443,7 +500,7 @@ def main():
         wrf_lon=wrf_lon
     )
 
-    # Figure 3: Side by side comparison GIF 
+    # Figure 3: Side by side comparison GIF
     if any(o is not None for o in obs_frames):
         make_refl_gif(
             wrf_frames,
