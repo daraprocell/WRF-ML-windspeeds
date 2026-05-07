@@ -223,10 +223,10 @@ def plot_refl_panel(ax, refl, lat, lon, title, stations=None,
     ax.add_feature(cfeature.COASTLINE.with_scale('10m'),
                    linewidth=1.2, edgecolor='black', zorder=5)
     ax.add_feature(cfeature.STATES.with_scale('10m'),
-                   linewidth=0.7, edgecolor='#444444',
+                   linewidth=0.7, edgecolor='dimgray',
                    facecolor='none', zorder=5)
     ax.add_feature(cfeature.BORDERS.with_scale('10m'),
-                   linewidth=0.8, edgecolor='#444444', zorder=5)
+                   linewidth=0.8, edgecolor='dimgray', zorder=5)
 
     ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()],
                   crs=ccrs.PlateCarree())
@@ -344,10 +344,10 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
         axes[0].add_feature(cfeature.COASTLINE.with_scale('10m'),
                             linewidth=1.0, edgecolor='black', zorder=5)
         axes[0].add_feature(cfeature.STATES.with_scale('10m'),
-                            linewidth=0.6, edgecolor='#444444',
+                            linewidth=0.6, edgecolor='dimgray',
                             facecolor='none', zorder=5)
         axes[0].add_feature(cfeature.BORDERS.with_scale('10m'),
-                            linewidth=0.7, edgecolor='#444444', zorder=5)
+                            linewidth=0.7, edgecolor='dimgray', zorder=5)
         axes[0].set_extent([wrf_lon.min(), wrf_lon.max(),
                             wrf_lat.min(), wrf_lat.max()],
                            crs=ccrs.PlateCarree())
@@ -379,10 +379,10 @@ def make_refl_gif(wrf_times_data, output_path, fps=3, mode='wrf',
                 axes[1].add_feature(cfeature.COASTLINE.with_scale('10m'),
                                     linewidth=1.0, edgecolor='black', zorder=5)
                 axes[1].add_feature(cfeature.STATES.with_scale('10m'),
-                                    linewidth=0.6, edgecolor='#444444',
+                                    linewidth=0.6, edgecolor='dimgray',
                                     facecolor='none', zorder=5)
                 axes[1].add_feature(cfeature.BORDERS.with_scale('10m'),
-                                    linewidth=0.7, edgecolor='#444444', zorder=5)
+                                    linewidth=0.7, edgecolor='dimgray', zorder=5)
                 axes[1].set_extent([wrf_lon.min(), wrf_lon.max(),
                                     wrf_lat.min(), wrf_lat.max()],
                                    crs=ccrs.PlateCarree())
