@@ -53,7 +53,6 @@ def parse_namelist(path):
         if line:
             clean.append(line)
 
-    # 2. Re-join into one big string, then split on commas / newlines into tokens
     text = ' '.join(clean)
 
     # 3. Remove section markers (&name and standalone /)
@@ -64,11 +63,9 @@ def parse_namelist(path):
     # Also handle trailing / after last value in a section
     text = re.sub(r'\s*/\s*(?=[a-zA-Z_]|\Z)', ' ', text)
 
-    # 4. Parse key = value pairs, where value may contain commas (multi-value lists)
-    #    Strategy: split on `word =` boundaries
+    # Parse key = value pairs, where value may contain commas (multi-value lists)
+    #    split on `word =` boundaries
     data = {}
-    # Find all assignments: key = val [, val ...] up to next key= or end
-    # Use a lookahead for the next `word =` pattern
     pattern = re.compile(
         r'([a-zA-Z_]\w*)\s*=\s*(.*?)(?=\s+[a-zA-Z_]\w*\s*=|$)',
         re.DOTALL
@@ -98,7 +95,6 @@ def get_list(data, key, n):
     return val[:n]
 
 
-# ── Domain geometry ────────────────────────────────────────────────────────────
 
 def wrf_proj(nml):
     """Return a Cartopy CRS matching the WPS map_proj."""
@@ -125,7 +121,6 @@ def wrf_proj(nml):
     elif proj in ('lat-lon', 'regular_ll'):
         return ccrs.PlateCarree()
     else:
-        print(f"[warn] Unknown map_proj '{proj}', defaulting to LambertConformal.")
         return ccrs.LambertConformal(central_longitude=stand_lon,
                                       central_latitude=truelat1)
 
@@ -142,19 +137,17 @@ def domain_corners(nml, d, proj, geo_crs):
     dx_d1  = float(nml.get('dx', 30000))
     dy_d1  = float(nml.get('dy', dx_d1))
 
-    # Parent grid ratio chain → effective dx/dy for domain d
     parent_grid_ratio = get_list(nml, 'parent_grid_ratio', max_dom)
     i_parent_start    = get_list(nml, 'i_parent_start',    max_dom)
     j_parent_start    = get_list(nml, 'j_parent_start',    max_dom)
 
-    # Compute dx for each domain
+    # dx for each domain
     dx = [dx_d1]
     dy = [dy_d1]
     for k in range(1, max_dom):
         dx.append(dx[k-1] / parent_grid_ratio[k])
         dy.append(dy[k-1] / parent_grid_ratio[k])
 
-    # Domain 1 centre is ref_lat / ref_lon
     ref_lat = float(nml.get('ref_lat', 0))
     ref_lon = float(nml.get('ref_lon', 0))
 
@@ -165,15 +158,12 @@ def domain_corners(nml, d, proj, geo_crs):
     nx1 = e_we[0] - 1
     ny1 = e_sn[0] - 1
 
-    # Centre of domain 1 in projection space
     cx = [pt[0]]
     cy = [pt[1]]
 
-    # Propagate centre for nested domains
     for k in range(1, max_dom):
         # i_parent_start / j_parent_start are 1-based indices on the parent grid
         parent = 0  # simplification: all nest in d1 for offset calc
-        # Offset of nest centre from parent SW corner
         nx_nest = e_we[k] - 1
         ny_nest = e_sn[k] - 1
         # SW corner of domain 1 in proj space
@@ -203,18 +193,14 @@ def domain_corners(nml, d, proj, geo_crs):
     return corners_geo  # list of (lon, lat)
 
 
-# ── Plotting ───────────────────────────────────────────────────────────────────
 
 COLORS = ['#E74C3C', '#2ECC71', '#3498DB', '#F39C12', '#9B59B6',
           '#1ABC9C', '#E67E22', '#34495E']
 
 
-# Tile zoom level: higher = more detail but slower to fetch.
-# Tune this based on domain size. Auto-selected below if not overridden.
 DEFAULT_TILE_ZOOM = None  # None = auto
 
 TILE_SOURCES = [
-    # (name, tiler_factory)  tried in order until one succeeds
     ('OSM',             lambda: cimgt.OSM()),
     ('GoogleTerrain',   lambda: cimgt.GoogleTiles(style='terrain')),
     ('GoogleStreet',    lambda: cimgt.GoogleTiles(style='street')),
@@ -244,20 +230,15 @@ def add_tile_background(ax, geo_crs, extent, zoom=None):
     for name, factory in TILE_SOURCES:
         try:
             tiler = factory()
-            # Quick connectivity check before adding to axes
             test_url = tiler._image_url((0, 0, zoom))
             req = urllib.request.Request(test_url,
                                          headers={'User-Agent': 'Mozilla/5.0'})
             urllib.request.urlopen(req, timeout=5)
-            # Connection works — add to axes
             ax.add_image(tiler, zoom)
-            print(f"[map] Using {name} tiles at zoom={zoom}")
             return name
         except Exception:
             continue
 
-    # Nothing worked — use bundled stock image
-    print("[map] Tile servers unreachable, falling back to stock_img.")
     ax.stock_img()
     return 'stock_img'
 
@@ -267,7 +248,6 @@ def plot_domains(nml, output=None, dpi=120, zoom=None):
     proj    = wrf_proj(nml)
     geo_crs = ccrs.PlateCarree()
 
-    # Collect all corners to determine map extent
     all_corners = []
     domain_corners_list = []
     for d in range(1, max_dom + 1):
@@ -282,7 +262,6 @@ def plot_domains(nml, output=None, dpi=120, zoom=None):
     extent = [min(lons) - lon_pad, max(lons) + lon_pad,
               min(lats) - lat_pad, max(lats) + lat_pad]
 
-    # Choose a nice display projection centred on domain 1
     ref_lon = float(nml.get('ref_lon', np.mean(lons)))
     ref_lat = float(nml.get('ref_lat', np.mean(lats)))
     map_proj = ccrs.LambertConformal(central_longitude=ref_lon,
@@ -292,7 +271,6 @@ def plot_domains(nml, output=None, dpi=120, zoom=None):
                            subplot_kw={'projection': map_proj})
     ax.set_extent(extent, crs=geo_crs)
 
-    # Background: try tile imagery (OSM → Google), fall back to stock_img
     bg = add_tile_background(ax, geo_crs, extent, zoom=zoom)
     grid_color = 'white' if bg != 'stock_img' else 'gray'
     ax.gridlines(draw_labels=True, linewidth=0.5, color=grid_color,
@@ -314,7 +292,6 @@ def plot_domains(nml, output=None, dpi=120, zoom=None):
         ax.fill(poly_lons, poly_lats, color=color, alpha=alpha,
                 transform=geo_crs, zorder=4)
 
-        # Label in the centre of the domain
         clon = np.mean([c[0] for c in corners])
         clat = np.mean([c[1] for c in corners])
         ax.text(clon, clat, f'd{d:02d}', transform=geo_crs,
@@ -323,7 +300,6 @@ def plot_domains(nml, output=None, dpi=120, zoom=None):
                 bbox=dict(facecolor='white', alpha=0.6, edgecolor='none',
                           boxstyle='round,pad=0.2'))
 
-        # Build legend label with domain info
         e_we   = get_list(nml, 'e_we',   max_dom)[d-1]
         e_sn   = get_list(nml, 'e_sn',   max_dom)[d-1]
         dx_d1  = float(nml.get('dx', 30000))
@@ -345,7 +321,6 @@ def plot_domains(nml, output=None, dpi=120, zoom=None):
 
     plt.tight_layout()
     plt.savefig(output, dpi=dpi, bbox_inches='tight')
-    print(f"Saved → {output}")
     plt.show()
 
 def main():
@@ -362,12 +337,9 @@ def main():
                              'Higher = more detail, slower. Typical range 4-9.')
     args = parser.parse_args()
 
-    # Default output: wrf_domains.png in the current working directory
     output = args.output or 'wrf_domains.png'
 
     nml = parse_namelist(args.namelist)
-    print(f"Parsed namelist: max_dom={nml.get('max_dom', 1)}, "
-          f"map_proj={nml.get('map_proj', '?')}")
     plot_domains(nml, output=output, dpi=args.dpi, zoom=args.zoom)
 
 
