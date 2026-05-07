@@ -109,10 +109,10 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
     ax.add_feature(cfeature.COASTLINE.with_scale('10m'),
                    linewidth=1.2, edgecolor='black', zorder=5)
     ax.add_feature(cfeature.STATES.with_scale('10m'),
-                   linewidth=0.7, edgecolor='#444444',
+                   linewidth=0.7, edgecolor='dimgray',
                    facecolor='none', zorder=5)
     ax.add_feature(cfeature.BORDERS.with_scale('10m'),
-                   linewidth=0.8, edgecolor='#444444', zorder=5)
+                   linewidth=0.8, edgecolor='dimgray', zorder=5)
 
     asos_df = asos_summary_df.copy()
 
@@ -272,16 +272,16 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
                     ha='center', va='center', fontsize=7.5,
                     fontweight='bold',
                     bbox=dict(boxstyle='round,pad=0.25',
-                              fc='#2C3E50', ec='none'),
+                              fc='darkslategray', ec='none'),
                     color='white', transform=tbl_ax.transAxes)
         x_pos += w
 
-    tbl_ax.axhline(header_y - 0.05, color='#2C3E50', lw=1.5)
+    tbl_ax.axhline(header_y - 0.05, color='darkslategray', lw=1.5)
 
     row_height = 0.80 / max(len(table_rows), 1)
     for r_idx, row_data in enumerate(table_rows):
         y = header_y - 0.10 - r_idx * row_height
-        bg_color = '#F8F9FA' if r_idx % 2 == 0 else 'white'
+        bg_color = 'whitesmoke' if r_idx % 2 == 0 else 'white'
 
         tbl_ax.add_patch(
             mpatches.Rectangle((0, y - row_height * 0.4), 1, row_height * 0.85,
@@ -300,7 +300,7 @@ def plot_wind_swath(wrf_lat, wrf_lon, max_wspd, time_of_max,
             f"{row_data['wrf_nbhd']:.1f}",
             f"{bias_nbhd:+.1f}",
         ]
-        row_colors  = ['black', '#555555', 'black', 'black', 'black',
+        row_colors  = ['black', 'dimgray', 'black', 'black', 'black',
                        'black', 'black']
         row_weights = ['bold', 'normal', 'bold', 'normal', 'bold',
                        'normal', 'bold']

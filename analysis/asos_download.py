@@ -33,7 +33,7 @@ import json
 import time
 
 KT_TO_MS = 0.514444   # knots → m/s
-F_TO_C   = lambda f: (f - 32) * 5 / 9   # °F → °C
+F_TO_C   = lambda f: (f - 32) * 5 / 9   # F → C
 
 # Houston event stations:
 #   - 19 Houston-area stations

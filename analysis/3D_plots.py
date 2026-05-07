@@ -170,10 +170,10 @@ def extract_3d_fields(wrfout_files, target_time, baseline_end,
     # Surface wind speed
     WSPD_sfc = np.sqrt(U10**2 + V10**2)
 
-    print(f"  Cold pool extent (<-2K): "
+    print(f"Cold pool extent (<-2K): "
           f"{(T_anom[height_mask] < -2).sum()} grid points")
-    print(f"  Max wind speed in domain: {WSPD[height_mask].max():.1f} m/s")
-    print(f"  Min T anomaly: {T_anom[height_mask].min():.1f} K")
+    print(f"Max wind speed in domain: {WSPD[height_mask].max():.1f} m/s")
+    print(f"Min T anomaly: {T_anom[height_mask].min():.1f} K")
 
     return {
         'lat':       sub_lat,

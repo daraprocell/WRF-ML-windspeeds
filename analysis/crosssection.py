@@ -173,7 +173,7 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
         f'N-S Cross Section at {abs(cross_lon):.2f}\u00b0W (Houston longitude) \u2014 '
         f'{peak_dt.strftime("%Y-%m-%d %H:%MZ")}',
         fontsize=11, fontweight='bold')
-    axes[0].grid(True, color='#DDDDDD', lw=0.5)
+    axes[0].grid(True, color='lightgray', lw=0.5)
 
     # Houston latitude marker on all panels
     axes[0].axvline(houston_lat, color='black', lw=1.5, ls='-', alpha=0.7,
@@ -204,7 +204,7 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     axes[1].set_title('(b) Horizontal Wind Speed |U| \u2014 '
                       'Inverted Profile Over Houston (PBL Transport Failure)',
                       fontsize=11, fontweight='bold')
-    axes[1].grid(True, color='#DDDDDD', lw=0.5)
+    axes[1].grid(True, color='lightgray', lw=0.5)
 
     axes[1].axvline(houston_lat, color='black', lw=1.5, ls='-', alpha=0.7,
                     zorder=10)
@@ -236,7 +236,7 @@ def plot_cross_section(data, lats, peak_time, cross_lon, output_path,
     axes[2].set_title('(c) Vertical Velocity W  '
                       '(orange = upward, purple = downward)',
                       fontsize=11, fontweight='bold')
-    axes[2].grid(True, color='#DDDDDD', lw=0.5)
+    axes[2].grid(True, color='lightgray', lw=0.5)
 
     axes[2].axvline(houston_lat, color='black', lw=1.5, ls='-', alpha=0.7,
                     zorder=10)
